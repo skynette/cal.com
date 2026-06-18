@@ -1,17 +1,14 @@
-import type { GetServerSidePropsContext } from "next";
-import { z } from "zod";
-
+import process from "node:process";
 import { getServerSession } from "@calcom/features/auth/lib/getServerSession";
 import { getOrgUsernameFromEmail } from "@calcom/features/auth/signup/utils/getOrgUsernameFromEmail";
-import { checkPremiumUsername } from "@calcom/features/ee/common/lib/checkPremiumUsername";
-import { isSAMLLoginEnabled } from "@calcom/features/ee/sso/lib/saml";
 import { FeaturesRepository } from "@calcom/features/flags/features.repository";
 import { IS_SELF_HOSTED, WEBAPP_URL } from "@calcom/lib/constants";
 import { emailSchema } from "@calcom/lib/emailSchema";
 import slugify from "@calcom/lib/slugify";
 import { teamMetadataSchema } from "@calcom/prisma/zod-utils";
-
 import { IS_GOOGLE_LOGIN_ENABLED } from "@server/lib/constants";
+import type { GetServerSidePropsContext } from "next";
+import { z } from "zod";
 
 const checkValidEmail = (email: string) => emailSchema.safeParse(email).success;
 
@@ -26,9 +23,8 @@ const querySchema = z.object({
 export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
   const prisma = await import("@calcom/prisma").then((mod) => mod.default);
   const featuresRepository = new FeaturesRepository(prisma);
-  const emailVerificationEnabled = await featuresRepository.checkIfFeatureIsEnabledGlobally(
-    "email-verification"
-  );
+  const emailVerificationEnabled =
+    await featuresRepository.checkIfFeatureIsEnabledGlobally("email-verification");
   const signupDisabled = await featuresRepository.checkIfFeatureIsEnabledGlobally("disable-signup");
   const onboardingV3Enabled = await featuresRepository.checkIfFeatureIsEnabledGlobally("onboarding-v3");
 
@@ -60,7 +56,7 @@ export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
   const props = {
     redirectUrl,
     isGoogleLoginEnabled: IS_GOOGLE_LOGIN_ENABLED,
-    isSAMLLoginEnabled,
+
     prepopulateFormValues: undefined,
     emailVerificationEnabled,
     onboardingV3Enabled,
@@ -125,28 +121,43 @@ export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
     } as const;
   }
 
-  const existingUser = await prisma.user.findFirst({
-    where: {
-      AND: [
-        {
-          email: verificationToken?.identifier,
-        },
-        {
-          emailVerified: {
-            not: null,
-          },
-        },
-      ],
-    },
-  });
-
-  if (existingUser) {
+  if (!verificationToken?.team) {
     return {
       redirect: {
         permanent: false,
-        destination: `/auth/login?callbackUrl=${WEBAPP_URL}/${ctx.query.callbackUrl}`,
+        destination: `/auth/error?error=Verification Token is not associated with any team`,
       },
-    };
+    } as const;
+  }
+
+  const isValidEmail = checkValidEmail(verificationToken.identifier);
+  if (isValidEmail) {
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        AND: [
+          {
+            email: verificationToken.identifier,
+          },
+          {
+            emailVerified: {
+              not: null,
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingUser) {
+      return {
+        redirect: {
+          permanent: false,
+          destination: `/auth/login?callbackUrl=${WEBAPP_URL}/${ctx.query.callbackUrl}`,
+        },
+      };
+    }
   }
 
   const guessUsernameFromEmail = (email: string) => {
@@ -154,11 +165,11 @@ export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
     return username;
   };
 
-  let username = guessUsernameFromEmail(verificationToken.identifier);
+  let username = isValidEmail ? guessUsernameFromEmail(verificationToken.identifier) : "";
 
   const tokenTeam = {
-    ...verificationToken?.team,
-    metadata: teamMetadataSchema.parse(verificationToken?.team?.metadata),
+    ...verificationToken.team,
+    metadata: teamMetadataSchema.parse(verificationToken.team.metadata ?? null),
   };
 
   const isATeamInOrganization = tokenTeam?.parentId !== null;
@@ -171,14 +182,14 @@ export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
     : null;
 
   // Org context shouldn't check if a username is premium
-  if (!IS_SELF_HOSTED && !isOrganizationOrATeamInOrganization) {
+  if (!IS_SELF_HOSTED && !isOrganizationOrATeamInOrganization && username) {
     // Im not sure we actually hit this because of next redirects signup to website repo - but just in case this is pretty cool :)
-    const { available, suggestion } = await checkPremiumUsername(username);
+    const available = true;
+    const suggestion: string | undefined = undefined;
 
     username = available ? username : suggestion || username;
   }
 
-  const isValidEmail = checkValidEmail(verificationToken.identifier);
   const isOrgInviteByLink = isOrganizationOrATeamInOrganization && !isValidEmail;
   const parentOrgSettings = tokenTeam?.parent?.organizationSettings ?? null;
 
@@ -186,22 +197,25 @@ export const getServerSideProps = async (ctx: GetServerSidePropsContext) => {
     props: {
       ...props,
       token,
-      prepopulateFormValues: !isOrgInviteByLink
-        ? {
-            email: verificationToken.identifier,
-            username: isOrganizationOrATeamInOrganization
-              ? getOrgUsernameFromEmail(
-                  verificationToken.identifier,
-                  (isOrganization
-                    ? tokenTeam.organizationSettings?.orgAutoAcceptEmail
-                    : parentOrgSettings?.orgAutoAcceptEmail) || ""
-                )
-              : slugify(username),
-          }
-        : null,
+      prepopulateFormValues:
+        !isOrgInviteByLink && isValidEmail
+          ? {
+              email: verificationToken.identifier,
+              username: isOrganizationOrATeamInOrganization
+                ? getOrgUsernameFromEmail(
+                    verificationToken.identifier,
+                    (isOrganization
+                      ? tokenTeam.organizationSettings?.orgAutoAcceptEmail
+                      : parentOrgSettings?.orgAutoAcceptEmail) || ""
+                  )
+                : slugify(username),
+            }
+          : null,
       orgSlug,
       orgAutoAcceptEmail: isOrgInviteByLink
-        ? tokenTeam?.organizationSettings?.orgAutoAcceptEmail ?? parentOrgSettings?.orgAutoAcceptEmail ?? null
+        ? (tokenTeam?.organizationSettings?.orgAutoAcceptEmail ??
+          parentOrgSettings?.orgAutoAcceptEmail ??
+          null)
         : null,
     },
   };

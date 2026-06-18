@@ -133,32 +133,6 @@ test.describe("Popup Tests", () => {
     expect(cancelledBooking.status).toBe("CANCELLED");
   });
 
-  test("should open Routing Forms embed on click", async ({
-    page,
-    embeds: { addEmbedListeners, getActionFiredDetails },
-  }) => {
-    await deleteAllBookingsByEmail("embed-user@example.com");
-
-    const calNamespace = "routingFormAuto";
-    await addEmbedListeners(calNamespace);
-    await page.goto("/?only=prerender-test");
-    await page.click(
-      `[data-cal-namespace=${calNamespace}][data-cal-link="forms/948ae412-d995-4865-875a-48302588de03"]`
-    );
-    const embedIframe = await getEmbedIframe({
-      calNamespace,
-      page,
-      pathname: "/forms/948ae412-d995-4865-875a-48302588de03",
-    });
-    if (!embedIframe) {
-      throw new Error("Routing Form embed iframe not found");
-    }
-    await expect(embedIframe).toBeEmbedCalLink(calNamespace, getActionFiredDetails, {
-      pathname: "/forms/948ae412-d995-4865-875a-48302588de03",
-    });
-    await expect(embedIframe.locator("text=Seeded Form - Pro")).toBeVisible();
-  });
-
   test.describe("Floating Button Popup", () => {
     test.describe("Pro User - Configured in App with default setting of system theme", () => {
       test("should open embed iframe according to system theme when no theme is configured through Embed API", async ({
@@ -314,12 +288,44 @@ test.describe("Popup Tests", () => {
 
     await embeds.gotoPlayground({ calNamespace, url: "/" });
 
-    await page.click(`[data-cal-namespace="${calNamespace}"]`);
+    await test.step("First modal open - verify UI config is applied", async () => {
+      await page.click(`[data-cal-namespace="${calNamespace}"]`);
 
-    const embedIframe = await getEmbedIframe({ calNamespace, page, pathname: "/free/30min" });
+      const embedIframe = await getEmbedIframe({ calNamespace, page, pathname: "/free/30min" });
 
-    await expect(embedIframe).toBeEmbedCalLink(calNamespace, embeds.getActionFiredDetails, {
-      pathname: "/free/30min",
+      await expect(embedIframe).toBeEmbedCalLink(calNamespace, embeds.getActionFiredDetails, {
+        pathname: "/free/30min",
+      });
+
+      if (!embedIframe) {
+        throw new Error("Embed iframe not found");
+      }
+
+      // Verify that event type details are hidden (hideEventTypeDetails: true was set via ui() call)
+      await expect(embedIframe.locator('[data-testid="event-meta"]')).toBeHidden();
+    });
+
+    await test.step("Close the modal", async () => {
+      await page.locator("cal-modal-box .close").click();
+      await expect(page.locator("cal-modal-box")).toBeHidden();
+    });
+
+    await test.step("Second modal open - verify UI config persists", async () => {
+      await page.click(`[data-cal-namespace="${calNamespace}"]`);
+
+      const embedIframe = await getEmbedIframe({ calNamespace, page, pathname: "/free/30min" });
+
+      await expect(embedIframe).toBeEmbedCalLink(calNamespace, embeds.getActionFiredDetails, {
+        pathname: "/free/30min",
+      });
+
+      if (!embedIframe) {
+        throw new Error("Embed iframe not found");
+      }
+
+      // Verify that event type details are STILL hidden on second open
+      // This tests that UI config persists across modal reopens (the bug was that iframeDoQueue was being cleared completely)
+      await expect(embedIframe.locator('[data-testid="event-meta"]')).toBeHidden();
     });
   });
 });

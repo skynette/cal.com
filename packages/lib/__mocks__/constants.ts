@@ -16,7 +16,7 @@ const initialConstants = {
   SEO_IMG_DEFAULT: "https://cal.com/og-image.png",
   SEO_IMG_OGIMG: "https://cal.com/og-image-wide.png",
   CURRENT_TIMEZONE: "Europe/London",
-  APP_NAME: "Cal.com",
+  APP_NAME: "Cal.diy",
   BOOKER_NUMBER_OF_DAYS_TO_LOAD: 14,
   PUBLIC_QUICK_AVAILABILITY_ROLLOUT: 100,
   SINGLE_ORG_SLUG: "",
@@ -33,19 +33,14 @@ beforeEach(() => {
 
 export const constantsScenarios = {
   enableTeamBilling: () => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
     mockedConstants.IS_TEAM_BILLING_ENABLED = true;
   },
   setWebsiteUrl: (url: string) => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
     mockedConstants.WEBSITE_URL = url;
   },
   set: (envVariables: Record<string, string>) => {
     Object.entries(envVariables).forEach(([key, value]) => {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
+      // @ts-expect-error - dynamic key access on Partial type
       mockedConstants[key] = value;
     });
   },

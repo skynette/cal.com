@@ -1,20 +1,18 @@
-import { CustomI18nProvider } from "app/CustomI18nProvider";
-import { withAppDirSsr } from "app/WithAppDirSsr";
+import { loadTranslations } from "@calcom/i18n/server";
+import { BookingStatus } from "@calcom/prisma/enums";
+import { buildLegacyCtx } from "@lib/buildLegacyCtx";
 import type { PageProps as _PageProps } from "app/_types";
 import { _generateMetadata } from "app/_utils";
+import { CustomI18nProvider } from "app/CustomI18nProvider";
+import { withAppDirSsr } from "app/WithAppDirSsr";
 import { cookies, headers } from "next/headers";
-
-import { getOrgFullOrigin } from "@calcom/features/ee/organizations/lib/orgDomains";
-import { loadTranslations } from "@calcom/lib/server/i18n";
-import { BookingStatus } from "@calcom/prisma/enums";
-
-import { buildLegacyCtx } from "@lib/buildLegacyCtx";
-
 import OldPage from "~/bookings/views/bookings-single-view";
 import {
-  getServerSideProps,
   type PageProps as ClientPageProps,
+  getServerSideProps,
 } from "~/bookings/views/bookings-single-view.getServerSideProps";
+
+const getData = withAppDirSsr<ClientPageProps>(getServerSideProps);
 
 export const generateMetadata = async ({ params, searchParams }: _PageProps) => {
   const { bookingInfo, eventType, recurringBookings, orgSlug } = await getData(
@@ -22,18 +20,24 @@ export const generateMetadata = async ({ params, searchParams }: _PageProps) => 
   );
   const needsConfirmation = bookingInfo.status === BookingStatus.PENDING && eventType.requiresConfirmation;
 
-  return await _generateMetadata(
+  const metadata = await _generateMetadata(
     (t) =>
       t(`booking_${needsConfirmation ? "submitted" : "confirmed"}${recurringBookings ? "_recurring" : ""}`),
     (t) =>
       t(`booking_${needsConfirmation ? "submitted" : "confirmed"}${recurringBookings ? "_recurring" : ""}`),
     false,
-    getOrgFullOrigin(orgSlug),
+    process.env.NEXT_PUBLIC_WEBAPP_URL ?? "",
     `/booking/${(await params).uid}`
   );
-};
 
-const getData = withAppDirSsr<ClientPageProps>(getServerSideProps);
+  return {
+    ...metadata,
+    robots: {
+      index: false,
+      follow: false,
+    },
+  };
+};
 
 const ServerPage = async ({ params, searchParams }: _PageProps) => {
   const context = buildLegacyCtx(await headers(), await cookies(), await params, await searchParams);

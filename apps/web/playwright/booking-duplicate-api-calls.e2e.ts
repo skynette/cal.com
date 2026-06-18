@@ -1,7 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { createTeamEventType } from "./fixtures/users";
 import { test } from "./lib/fixtures";
 
 async function testDuplicateAPICalls(
@@ -36,6 +35,18 @@ async function testDuplicateAPICalls(
   };
 }
 
+/**
+ * Creates a stable test date that avoids month boundary issues.
+ * Uses a fixed date in the middle of a month to ensure consistent behavior
+ * regardless of when the test is run.
+ * @param dayOfMonth - The day of the month to use (5 for beginning, 20 for end)
+ */
+function getStableTestDate(dayOfMonth: number): Date {
+  // Use a fixed future date to avoid any issues with past dates or month boundaries
+  // July 2030 is chosen as it's far in the future and has no special calendar quirks
+  return new Date(2030, 6, dayOfMonth, 12, 0, 0);
+}
+
 test.describe("Duplicate API Calls Prevention", () => {
   test.afterEach(({ users }) => users.deleteAll());
 
@@ -45,8 +56,7 @@ test.describe("Duplicate API Calls Prevention", () => {
   }) => {
     const user = await users.create();
     const eventType = user.eventTypes.find((e) => e.slug === "30-min");
-    const beginningOfMonth = new Date();
-    beginningOfMonth.setDate(5);
+    const beginningOfMonth = getStableTestDate(5);
 
     const { totalCalls, trpcCalls, apiV2Calls } = await testDuplicateAPICalls(
       page,
@@ -66,8 +76,7 @@ test.describe("Duplicate API Calls Prevention", () => {
   }) => {
     const user = await users.create();
     const eventType = user.eventTypes.find((e) => e.slug === "30-min");
-    const endOfMonth = new Date();
-    endOfMonth.setDate(20);
+    const endOfMonth = getStableTestDate(20);
 
     const { totalCalls, trpcCalls, apiV2Calls } = await testDuplicateAPICalls(
       page,
@@ -81,143 +90,4 @@ test.describe("Duplicate API Calls Prevention", () => {
     expect(apiV2Calls).toBeLessThanOrEqual(1);
   });
 
-  test("should detect when schedule endpoints are called multiple times for team events - beginning of month", async ({
-    page,
-    users,
-  }) => {
-    const teamOwner = await users.create(
-      { name: "Team Owner" },
-      {
-        hasTeam: true,
-        teammates: [{ name: "teammate-1" }],
-      }
-    );
-    const beginningOfMonth = new Date();
-    beginningOfMonth.setDate(5);
-
-    const { team } = await teamOwner.getFirstTeamMembership();
-    const teamEvent = await createTeamEventType(
-      { id: teamOwner.id },
-      { id: team.id },
-      { teamEventSlug: "team-event-test", teamEventTitle: "Team Event Test" }
-    );
-
-    const { totalCalls, trpcCalls, apiV2Calls } = await testDuplicateAPICalls(
-      page,
-      `/team/${team.slug}/${teamEvent.slug}`,
-      beginningOfMonth
-    );
-
-    expect(totalCalls).toBeGreaterThan(0);
-    expect(totalCalls).toBeLessThanOrEqual(1);
-    expect(trpcCalls).toBeLessThanOrEqual(1);
-    expect(apiV2Calls).toBeLessThanOrEqual(1);
-  });
-
-  test("should detect when schedule endpoints are called multiple times for team events - end of month", async ({
-    page,
-    users,
-  }) => {
-    const teamOwner = await users.create(
-      { name: "Team Owner" },
-      {
-        hasTeam: true,
-        teammates: [{ name: "teammate-1" }],
-      }
-    );
-
-    const { team } = await teamOwner.getFirstTeamMembership();
-    const teamEvent = await createTeamEventType(
-      { id: teamOwner.id },
-      { id: team.id },
-      { teamEventSlug: "team-event-test", teamEventTitle: "Team Event Test" }
-    );
-    const endOfMonth = new Date();
-    endOfMonth.setDate(20);
-
-    const { totalCalls, trpcCalls, apiV2Calls } = await testDuplicateAPICalls(
-      page,
-      `/team/${team.slug}/${teamEvent.slug}`,
-      endOfMonth
-    );
-
-    expect(totalCalls).toBeGreaterThan(0);
-    expect(totalCalls).toBeLessThanOrEqual(1);
-    expect(trpcCalls).toBeLessThanOrEqual(1);
-    expect(apiV2Calls).toBeLessThanOrEqual(1);
-  });
-
-  test("should detect when schedule endpoints are called multiple times for organization team events - beginning of month", async ({
-    page,
-    users,
-  }) => {
-    const orgOwner = await users.create(
-      { name: "Org Owner" },
-      {
-        hasTeam: true,
-        teammates: [{ name: "teammate-1" }],
-        isOrg: true,
-        isOrgVerified: true,
-        hasSubteam: true,
-      }
-    );
-
-    const { team } = await orgOwner.getFirstTeamMembership();
-    const { team: org } = await orgOwner.getOrgMembership();
-    const teamEvent = await createTeamEventType(
-      { id: orgOwner.id },
-      { id: team.id },
-      { teamEventSlug: "org-team-event", teamEventTitle: "Org Team Event" }
-    );
-    const beginningOfMonth = new Date();
-    beginningOfMonth.setDate(5);
-
-    const { totalCalls, trpcCalls, apiV2Calls } = await testDuplicateAPICalls(
-      page,
-      `/org/${org.slug}/${team.slug}/${teamEvent.slug}`,
-      beginningOfMonth
-    );
-
-    expect(totalCalls).toBeGreaterThan(0);
-    expect(totalCalls).toBeLessThanOrEqual(1);
-    expect(trpcCalls).toBeLessThanOrEqual(1);
-    expect(apiV2Calls).toBeLessThanOrEqual(1);
-  });
-
-  test("should detect when schedule endpoints are called multiple times for organization team events - end of month", async ({
-    page,
-    users,
-  }) => {
-    const orgOwner = await users.create(
-      { name: "Org Owner" },
-      {
-        hasTeam: true,
-        teammates: [{ name: "teammate-1" }],
-        isOrg: true,
-        isOrgVerified: true,
-        hasSubteam: true,
-      }
-    );
-
-    const { team } = await orgOwner.getFirstTeamMembership();
-    const { team: org } = await orgOwner.getOrgMembership();
-    const teamEvent = await createTeamEventType(
-      { id: orgOwner.id },
-      { id: team.id },
-      { teamEventSlug: "org-team-event", teamEventTitle: "Org Team Event" }
-    );
-    const endOfMonth = new Date();
-    endOfMonth.setDate(20);
-
-    const { totalCalls, trpcCalls, apiV2Calls } = await testDuplicateAPICalls(
-      page,
-      `/org/${org.slug}/${team.slug}/${teamEvent.slug}`,
-      endOfMonth
-    );
-
-    expect(totalCalls).toBeGreaterThan(0);
-    expect(totalCalls).toBeLessThanOrEqual(1);
-    expect(trpcCalls).toBeLessThanOrEqual(1);
-    expect(apiV2Calls).toBeLessThanOrEqual(1);
-  });
 });

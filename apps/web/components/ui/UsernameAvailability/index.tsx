@@ -1,18 +1,13 @@
-import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
-import type { RefCallback, ReactNode } from "react";
-import { Controller, useForm } from "react-hook-form";
-
-import { useOrgBranding } from "@calcom/features/ee/organizations/context/provider";
-import { WEBSITE_URL, IS_SELF_HOSTED } from "@calcom/lib/constants";
-import slugify from "@calcom/lib/slugify";
+import { IS_SELF_HOSTED, WEBSITE_URL } from "@calcom/lib/constants";
 import { trpc } from "@calcom/trpc/react";
 import type { AppRouter } from "@calcom/trpc/types/server/routers/_app";
-
 import useRouterQuery from "@lib/hooks/useRouterQuery";
-
 import type { TRPCClientErrorLike } from "@trpc/client";
+import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
+import type { ReactNode, RefCallback } from "react";
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 
 interface UsernameAvailabilityFieldProps {
   onSuccessMutation?: () => void;
@@ -42,9 +37,7 @@ export const UsernameAvailability = (props: ICustomUsernameProps) => {
   const { isPremium, disabled, ...otherProps } = props;
   const UsernameAvailabilityComponent = isPremium ? PremiumTextfield : UsernameTextfield;
   // PremiumTextfield uses `readonly` prop, UsernameTextfield uses `disabled` prop
-  const componentProps = isPremium
-    ? { ...otherProps, readonly: disabled }
-    : { ...otherProps, disabled };
+  const componentProps = isPremium ? { ...otherProps, readonly: disabled } : { ...otherProps, disabled };
   return <UsernameAvailabilityComponent {...componentProps} />;
 };
 
@@ -63,14 +56,14 @@ export const UsernameAvailabilityField = ({
       : { username: currentUsernameState || "", setQuery: setCurrentUsernameState };
   const formMethods = useForm({
     defaultValues: {
-      username: slugify(currentUsername || user.username || ""),
+      username: currentUsername,
     },
   });
 
-  const orgBranding = useOrgBranding();
+  const orgBranding = null;
 
   const usernamePrefix = orgBranding
-    ? orgBranding?.fullDomain.replace(/^(https?:|)\/\//, "")
+    ? "".replace(/^(https?:|)\/\//, "")
     : `${WEBSITE_URL?.replace(/^(https?:|)\/\//, "")}`;
 
   const isPremium = !IS_SELF_HOSTED && !user.organization?.id;
@@ -85,11 +78,7 @@ export const UsernameAvailabilityField = ({
           setCurrentUsername={setCurrentUsername}
           inputUsernameValue={value}
           usernameRef={ref}
-          setInputUsernameValue={(val) => {
-            const displayValue = slugify(val, true);
-            formMethods.setValue("username", displayValue);
-            onChange?.(displayValue);
-          }}
+          setInputUsernameValue={onChange}
           onSuccessMutation={onSuccessMutation}
           onErrorMutation={onErrorMutation}
           disabled={disabled ?? !!user.organization?.id}

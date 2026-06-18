@@ -1,22 +1,20 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-
 import { PaymentServiceMap } from "@calcom/app-store/payment.services.generated";
 import { sendNoShowFeeChargedEmail } from "@calcom/emails/billing-email-service";
 import { CredentialRepository } from "@calcom/features/credentials/repositories/CredentialRepository";
-import { TeamRepository } from "@calcom/features/ee/teams/repositories/TeamRepository";
-import { MembershipRepository } from "@calcom/features/membership/repositories/MembershipRepository";
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
-import { getTranslation } from "@calcom/lib/server/i18n";
-
+import { getTranslation } from "@calcom/i18n/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleNoShowFee } from "./handleNoShowFee";
 
 vi.mock("@calcom/app-store/payment.services.generated", () => ({
   PaymentServiceMap: {
     stripepayment: Promise.resolve({
-      PaymentService: vi.fn().mockImplementation(() => ({
-        chargeCard: vi.fn(),
-      })),
+      BuildPaymentService: vi.fn().mockImplementation(function () {
+        return {
+          chargeCard: vi.fn(),
+        };
+      }),
     }),
   },
 }));
@@ -25,7 +23,7 @@ vi.mock("@calcom/emails/billing-email-service", () => ({
   sendNoShowFeeChargedEmail: vi.fn(),
 }));
 
-vi.mock("@calcom/lib/server/i18n", () => ({
+vi.mock("@calcom/i18n/server", () => ({
   getTranslation: vi.fn().mockResolvedValue((key: string) => key),
 }));
 
@@ -36,20 +34,10 @@ vi.mock("@calcom/features/credentials/repositories/CredentialRepository", () => 
   },
 }));
 
-vi.mock("@calcom/features/membership/repositories/MembershipRepository", () => ({
-  MembershipRepository: {
-    findUniqueByUserIdAndTeamId: vi.fn(),
-  },
-}));
-
-vi.mock("@calcom/features/ee/teams/repositories/TeamRepository", () => ({
-  TeamRepository: vi.fn().mockImplementation(() => ({
-    findParentOrganizationByTeamId: vi.fn(),
-  })),
-}));
 
 vi.mock("@calcom/prisma", () => ({
   default: {},
+  prisma: {},
 }));
 
 describe("handleNoShowFee", () => {
@@ -62,7 +50,9 @@ describe("handleNoShowFee", () => {
     };
 
     const paymentServiceModule = await PaymentServiceMap.stripepayment;
-    vi.mocked(paymentServiceModule.PaymentService).mockImplementation(() => mockPaymentService);
+    vi.mocked(paymentServiceModule.BuildPaymentService).mockImplementation(function () {
+      return mockPaymentService;
+    });
   });
 
   const mockBooking = {
@@ -78,6 +68,7 @@ describe("handleNoShowFee", () => {
       name: "John Organizer",
       locale: "en",
       timeZone: "UTC",
+      profiles: [],
     },
     eventType: {
       title: "Test Event Type",
@@ -154,17 +145,6 @@ describe("handleNoShowFee", () => {
 
       mockPaymentService.chargeCard.mockResolvedValue({ success: true, paymentId: "pay_123" });
 
-      vi.mocked(MembershipRepository.findUniqueByUserIdAndTeamId).mockResolvedValue({
-        id: 1,
-        userId: 1,
-        teamId: 1,
-        role: "MEMBER",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        disableImpersonation: false,
-        accepted: true,
-        customRoleId: null,
-      });
       vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId).mockResolvedValue(
         mockCredential
       );
@@ -175,13 +155,14 @@ describe("handleNoShowFee", () => {
       });
 
       expect(result).toEqual({ success: true, paymentId: "pay_123" });
-      expect(MembershipRepository.findUniqueByUserIdAndTeamId).toHaveBeenCalledWith({
+      expect(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId).toHaveBeenCalledWith({
+        appId: "stripepayment",
         userId: 1,
         teamId: 1,
       });
     });
 
-    it("should find credential from parent organization when team credential not found", async () => {
+    it("should throw when no credential found for team event", async () => {
       const teamBooking = {
         ...mockBooking,
         eventType: {
@@ -190,40 +171,14 @@ describe("handleNoShowFee", () => {
         },
       };
 
-      mockPaymentService.chargeCard.mockResolvedValue({ success: true, paymentId: "pay_123" });
+      vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId).mockResolvedValue(null);
 
-      vi.mocked(MembershipRepository.findUniqueByUserIdAndTeamId).mockResolvedValue({
-        id: 1,
-        userId: 1,
-        teamId: 1,
-        role: "MEMBER",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        disableImpersonation: false,
-        accepted: true,
-        customRoleId: null,
-      });
-      vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(mockCredential);
-      vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndTeamId).mockResolvedValue(mockCredential);
-
-      const mockTeamRepository = {
-        findParentOrganizationByTeamId: vi.fn().mockResolvedValue({ id: 2 }),
-      };
-      vi.mocked(TeamRepository).mockImplementation(() => mockTeamRepository);
-
-      const result = await handleNoShowFee({
-        booking: teamBooking,
-        payment: mockPayment,
-      });
-
-      expect(result).toEqual({ success: true, paymentId: "pay_123" });
-      expect(mockTeamRepository.findParentOrganizationByTeamId).toHaveBeenCalledWith(1);
-      expect(CredentialRepository.findPaymentCredentialByAppIdAndTeamId).toHaveBeenCalledWith({
-        appId: "stripepayment",
-        teamId: 2,
-      });
+      await expect(
+        handleNoShowFee({
+          booking: teamBooking,
+          payment: mockPayment,
+        })
+      ).rejects.toThrow("No payment credential found");
     });
   });
 
@@ -242,7 +197,7 @@ describe("handleNoShowFee", () => {
       ).rejects.toThrow("User ID is required");
     });
 
-    it("should throw error when user is not a member of the team", async () => {
+    it("should throw error when no credential found for team event without membership check", async () => {
       const teamBooking = {
         ...mockBooking,
         eventType: {
@@ -251,14 +206,14 @@ describe("handleNoShowFee", () => {
         },
       };
 
-      vi.mocked(MembershipRepository.findUniqueByUserIdAndTeamId).mockResolvedValue(null);
+      vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId).mockResolvedValue(null);
 
       await expect(
         handleNoShowFee({
           booking: teamBooking,
           payment: mockPayment,
         })
-      ).rejects.toThrow("User is not a member of the team");
+      ).rejects.toThrow("No payment credential found");
     });
 
     it("should throw error when no payment credential is found", async () => {
@@ -346,21 +301,19 @@ describe("handleNoShowFee", () => {
     });
 
     it("should handle ChargeCardFailure error with proper message", async () => {
-      mockPaymentService.chargeCard.mockRejectedValue(
-        new ErrorWithCode(ErrorCode.ChargeCardFailure, "Card declined")
-      );
+      const chargeCardError = new ErrorWithCode(ErrorCode.ChargeCardFailure, "Card declined");
+      mockPaymentService.chargeCard.mockRejectedValue(chargeCardError);
 
       vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId).mockResolvedValue(
         mockCredential
       );
-      vi.mocked(getTranslation).mockResolvedValue((key: string) => `Translated: ${key}`);
 
       await expect(
         handleNoShowFee({
           booking: mockBooking,
           payment: mockPayment,
         })
-      ).rejects.toThrow("Translated: Card declined");
+      ).rejects.toThrow(chargeCardError);
     });
 
     it("should handle generic payment errors", async () => {
@@ -369,14 +322,13 @@ describe("handleNoShowFee", () => {
       vi.mocked(CredentialRepository.findPaymentCredentialByAppIdAndUserIdOrTeamId).mockResolvedValue(
         mockCredential
       );
-      vi.mocked(getTranslation).mockResolvedValue((key: string) => `Translated: ${key}`);
 
       await expect(
         handleNoShowFee({
           booking: mockBooking,
           payment: mockPayment,
         })
-      ).rejects.toThrow(/Translated: Error processing paymentId 1 with error/);
+      ).rejects.toThrow(/Error processing paymentId 1 with error/);
     });
   });
 
@@ -440,12 +392,15 @@ describe("handleNoShowFee", () => {
         mockCredential
       );
 
+      vi.mocked(getTranslation).mockResolvedValue((key: string) => key);
+
       const result = await handleNoShowFee({
         booking: bookingWithAttendeesWithoutLocale,
         payment: mockPayment,
       });
 
       expect(result).toEqual({ success: true, paymentId: "pay_123" });
+      // getTranslation is called for organizer and attendee - both fallback to "en"
       expect(getTranslation).toHaveBeenCalledWith("en", "common");
     });
   });

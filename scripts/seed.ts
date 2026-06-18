@@ -1,203 +1,26 @@
-import { uuid } from "short-uuid";
-import type z from "zod";
-
+import { createHash } from "node:crypto";
+import process from "node:process";
 import dailyMeta from "@calcom/app-store/dailyvideo/_metadata";
 import googleMeetMeta from "@calcom/app-store/googlevideo/_metadata";
 import zoomMeta from "@calcom/app-store/zoomvideo/_metadata";
 import dayjs from "@calcom/dayjs";
-import { getOrgFullOrigin } from "@calcom/ee/organizations/lib/orgDomains";
 import { hashPassword } from "@calcom/lib/auth/hashPassword";
 import { DEFAULT_SCHEDULE, getAvailabilityFromSchedule } from "@calcom/lib/availability";
-import prisma from "@calcom/prisma";
+import { WEBAPP_URL } from "@calcom/lib/constants";
+import { prisma } from "@calcom/prisma";
 import type { Membership, Team, User, UserPermissionRole } from "@calcom/prisma/client";
 import { Prisma } from "@calcom/prisma/client";
 import { BookingStatus, MembershipRole, RedirectType, SchedulingType } from "@calcom/prisma/enums";
 import type { Ensure } from "@calcom/types/utils";
-
+import { uuid } from "short-uuid";
+import type z from "zod";
 import type { teamMetadataSchema } from "../packages/prisma/zod-utils";
 import mainAppStore from "./seed-app-store";
 import mainHugeEventTypesSeed from "./seed-huge-event-types";
-import { createUserAndEventType } from "./seed-utils";
+import { createOAuthClientForUser, createUserAndEventType } from "./seed-utils";
 
-type PlatformUser = {
-  email: string;
-  password: string;
-  username: string;
-  name: string;
-  completedOnboarding?: boolean;
-  timeZone?: string;
-  role?: UserPermissionRole;
-  theme?: "dark" | "light";
-  avatarUrl?: string | null;
-};
-
-type AssociateUserAndOrgProps = {
-  teamId: number;
-  userId: number;
-  role: MembershipRole;
-  username: string;
-};
-
-const checkUnpublishedTeam = async (slug: string) => {
-  return await prisma.team.findFirst({
-    where: {
-      metadata: {
-        path: ["requestedSlug"],
-        equals: slug,
-      },
-    },
-  });
-};
-
-const setupPlatformUser = async (user: PlatformUser) => {
-  const { password: _password, ...restOfUser } = user;
-  const userData = {
-    ...restOfUser,
-    emailVerified: new Date(),
-    completedOnboarding: user.completedOnboarding ?? true,
-    locale: "en",
-    schedules:
-      user.completedOnboarding ?? true
-        ? {
-            create: {
-              name: "Working Hours",
-              availability: {
-                createMany: {
-                  data: getAvailabilityFromSchedule(DEFAULT_SCHEDULE),
-                },
-              },
-            },
-          }
-        : undefined,
-  };
-
-  const platformUser = await prisma.user.upsert({
-    where: { email_username: { email: user.email, username: user.username } },
-    update: userData,
-    create: userData,
-  });
-
-  await prisma.userPassword.upsert({
-    where: { userId: platformUser.id },
-    update: {
-      hash: await hashPassword(user.password),
-    },
-    create: {
-      hash: await hashPassword(user.password),
-      user: {
-        connect: {
-          id: platformUser.id,
-        },
-      },
-    },
-  });
-
-  return platformUser;
-};
-
-const createTeam = async (team: Prisma.TeamCreateInput) => {
-  try {
-    const requestedSlug = (team.metadata as z.infer<typeof teamMetadataSchema>)?.requestedSlug;
-    if (requestedSlug) {
-      const unpublishedTeam = await checkUnpublishedTeam(requestedSlug);
-      if (unpublishedTeam) {
-        throw Error("Unique constraint failed on the fields");
-      }
-    }
-    return await prisma.team.create({
-      data: {
-        ...team,
-      },
-    });
-  } catch (_err) {
-    if (_err instanceof Error && _err.message.indexOf("Unique constraint failed on the fields") !== -1) {
-      console.log(`Team '${team.name}' already exists, skipping.`);
-      return;
-    }
-    throw _err;
-  }
-};
-
-const associateUserAndOrg = async ({ teamId, userId, role, username }: AssociateUserAndOrgProps) => {
-  await prisma.membership.create({
-    data: {
-      createdAt: new Date(),
-      teamId,
-      userId,
-      role: role as MembershipRole,
-      accepted: true,
-    },
-  });
-
-  const profile = await prisma.profile.create({
-    data: {
-      uid: uuid(),
-      username,
-      organizationId: teamId,
-      userId,
-    },
-  });
-
-  await prisma.user.update({
-    data: {
-      movedToProfileId: profile.id,
-    },
-    where: {
-      id: userId,
-    },
-  });
-};
-
-async function createPlatformAndSetupUser({
-  teamInput,
-  user,
-}: {
-  teamInput: Prisma.TeamCreateInput;
-  user: PlatformUser;
-}) {
-  const team = await createTeam(teamInput);
-
-  const platformUser = await setupPlatformUser(user);
-
-  console.log(
-    `👤 Upserted '${user.username}' with email "${user.email}" & password "${user.password}". Booking page 👉 ${process.env.NEXT_PUBLIC_WEBAPP_URL}/${user.username}`
-  );
-
-  const { username } = platformUser;
-
-  const membershipRole = MembershipRole.OWNER;
-
-  if (!!team) {
-    await associateUserAndOrg({
-      teamId: team.id,
-      userId: platformUser.id,
-      role: membershipRole,
-      username: user.username,
-    });
-
-    await prisma.platformBilling.create({
-      data: {
-        id: team?.id,
-        plan: "SCALE",
-        customerId: "cus_123",
-        subscriptionId: "sub_123",
-      },
-    });
-
-    await prisma.platformOAuthClient.create({
-      data: {
-        name: "Acme",
-        redirectUris: ["http://localhost:4321"],
-        permissions: 1023,
-        areEmailsEnabled: true,
-        organizationId: team.id,
-        id: "clxyyy21o0003sbk7yw5z6tzg",
-        secret:
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiQWNtZSAiLCJwZXJtaXNzaW9ucyI6MTAyMywicmVkaXJlY3RVcmlzIjpbImh0dHA6Ly9sb2NhbGhvc3Q6NDMyMSJdLCJib29raW5nUmVkaXJlY3RVcmkiOiIiLCJib29raW5nQ2FuY2VsUmVkaXJlY3RVcmkiOiIiLCJib29raW5nUmVzY2hlZHVsZVJlZGlyZWN0VXJpIjoiIiwiYXJlRW1haWxzRW5hYmxlZCI6dHJ1ZSwiaWF0IjoxNzE5NTk1ODA4fQ.L5_jSS14fcKLCD_9_DAOgtGd6lUSZlU5CEpCPaPt41I",
-      },
-    });
-    console.log(`\t👤 Added '${teamInput.name}' membership for '${username}' with role '${membershipRole}'`);
-  }
+function hashAPIKey(apiKey: string): string {
+  return createHash("sha256").update(apiKey).digest("hex");
 }
 
 async function createTeamAndAddUsers(
@@ -226,6 +49,9 @@ async function createTeamAndAddUsers(
       return await prisma.team.create({
         data: {
           ...team,
+        },
+        include: {
+          eventTypes: true,
         },
       });
     } catch (_err) {
@@ -258,6 +84,27 @@ async function createTeamAndAddUsers(
       },
     });
     console.log(`\t👤 Added '${teamInput.name}' membership for '${username}' with role '${role}'`);
+  }
+
+  // Connect users and create hosts for team event types
+  for (const eventType of team.eventTypes) {
+    const isCollective = eventType.schedulingType === SchedulingType.COLLECTIVE;
+    await prisma.eventType.update({
+      where: {
+        id: eventType.id,
+      },
+      data: {
+        users: {
+          connect: users.map((user) => ({ id: user.id })),
+        },
+        hosts: {
+          create: users.map((user) => ({
+            userId: user.id,
+            isFixed: isCollective,
+          })),
+        },
+      },
+    });
   }
 
   return team;
@@ -301,7 +148,12 @@ async function createOrganizationAndAddMembersAndTeams({
   });
 
   if (existingTeam) {
-    console.log(`Organization with slug '${orgData.slug}' already exists, skipping.`);
+    console.log(`Organization with slug '${orgData.slug}' already exists, ensuring settings are up to date.`);
+    await prisma.organizationSettings.upsert({
+      where: { organizationId: existingTeam.id },
+      update: { ...orgData.organizationSettings },
+      create: { organizationId: existingTeam.id, ...orgData.organizationSettings },
+    });
     return;
   }
 
@@ -313,14 +165,13 @@ async function createOrganizationAndAddMembersAndTeams({
     };
   })[] = [];
 
-  try {
-    const batchSize = 50;
-    // Process members in batches of  in parallel
-    for (let i = 0; i < orgMembers.length; i += batchSize) {
-      const batch = orgMembers.slice(i, i + batchSize);
+  const batchSize = 50;
+  for (let i = 0; i < orgMembers.length; i += batchSize) {
+    const batch = orgMembers.slice(i, i + batchSize);
 
-      const batchResults = await Promise.all(
-        batch.map(async (member) => {
+    const batchResults = await Promise.all(
+      batch.map(async (member) => {
+        try {
           const newUser = await createUserAndEventType({
             user: {
               ...member.memberData,
@@ -347,13 +198,6 @@ async function createOrganizationAndAddMembersAndTeams({
             ],
           });
 
-          const orgMemberInDb = {
-            ...newUser,
-            inTeams: member.inTeams,
-            orgMembership: member.orgMembership,
-            orgProfile: member.orgProfile,
-          };
-
           // Create temp org redirect with upsert to handle duplicates
           await prisma.tempOrgRedirect.upsert({
             where: {
@@ -364,36 +208,55 @@ async function createOrganizationAndAddMembersAndTeams({
               },
             },
             update: {
-              toUrl: `${getOrgFullOrigin(orgData.slug)}/${member.orgProfile.username}`,
+              toUrl: `${WEBAPP_URL}/${member.orgProfile.username}`,
             },
             create: {
               fromOrgId: 0,
               type: RedirectType.User,
               from: member.memberData.username,
-              toUrl: `${getOrgFullOrigin(orgData.slug)}/${member.orgProfile.username}`,
+              toUrl: `${WEBAPP_URL}/${member.orgProfile.username}`,
             },
           });
 
-          return orgMemberInDb;
-        })
-      );
+          return {
+            ...newUser,
+            inTeams: member.inTeams,
+            orgMembership: member.orgMembership,
+            orgProfile: member.orgProfile,
+          };
+        } catch (e) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+            console.log("Organization member already seeded, skipping");
+            const existingUser = await prisma.user.findUnique({
+              where: {
+                email_username: {
+                  email: member.memberData.email,
+                  username: member.memberData.username,
+                },
+              },
+            });
+            if (!existingUser) throw e;
+            return {
+              ...existingUser,
+              inTeams: member.inTeams,
+              orgMembership: member.orgMembership,
+              orgProfile: member.orgProfile,
+            };
+          }
+          throw e;
+        }
+      })
+    );
 
-      orgMembersInDb.push(...batchResults);
-    }
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      if (e.code === "P2002") {
-        console.log(`One of the organization members already exists, skipping the entire seeding`);
-        return;
-      }
-    }
-    console.error(e);
+    orgMembersInDb.push(...batchResults.filter((r): r is NonNullable<typeof r> => r !== null));
   }
 
-  await Promise.all([
+  await Promise.all(
     usersOutsideOrg.map(async (user) => {
-      return await prisma.user.create({
-        data: {
+      await prisma.user.upsert({
+        where: { email_username: { email: user.email, username: user.username } },
+        update: {},
+        create: {
           username: user.username,
           name: user.name,
           email: user.email,
@@ -405,12 +268,12 @@ async function createOrganizationAndAddMembersAndTeams({
           },
         },
       });
-    }),
-  ]);
+    })
+  );
 
   const { organizationSettings, ...restOrgData } = orgData;
 
-  // Create organization with those users as members
+  // Step 1: Create organization (team) with just metadata and organizationSettings
   const orgInDb = await prisma.team.create({
     data: {
       ...restOrgData,
@@ -418,55 +281,73 @@ async function createOrganizationAndAddMembersAndTeams({
         ...(orgData.metadata && typeof orgData.metadata === "object" ? orgData.metadata : {}),
         isOrganization: true,
       },
-      orgProfiles: {
-        create: orgMembersInDb.map((member) => ({
-          uid: uuid(),
-          username: member.orgProfile.username,
-          movedFromUser: {
-            connect: {
-              id: member.id,
-            },
-          },
-          user: {
-            connect: {
-              id: member.id,
-            },
-          },
-        })),
-      },
       organizationSettings: {
         create: {
           ...organizationSettings,
         },
       },
-      members: {
-        create: orgMembersInDb.map((member) => ({
-          user: {
-            connect: {
-              id: member.id,
-            },
-          },
-          role: member.orgMembership.role || "MEMBER",
-          accepted: member.orgMembership.accepted,
-        })),
-      },
     },
     select: {
       id: true,
-      members: true,
-      orgProfiles: true,
     },
   });
 
-  const orgMembersInDBWithProfileId = await Promise.all(
-    orgMembersInDb.map(async (member) => ({
-      ...member,
-      profile: {
-        ...member.orgProfile,
-        id: orgInDb.orgProfiles.find((p) => p.userId === member.id)?.id,
-      },
-    }))
-  );
+  // Step 2: Create org profiles in batches to avoid large transactions
+  const profileBatchSize = 50;
+  for (let i = 0; i < orgMembersInDb.length; i += profileBatchSize) {
+    const batch = orgMembersInDb.slice(i, i + profileBatchSize);
+    await Promise.all(
+      batch.map((member) =>
+        prisma.profile.create({
+          data: {
+            uid: uuid(),
+            username: member.orgProfile.username,
+            organizationId: orgInDb.id,
+            userId: member.id,
+            movedFromUser: {
+              connect: {
+                id: member.id,
+              },
+            },
+          },
+        })
+      )
+    );
+  }
+
+  // Step 3: Create memberships using createMany for better performance
+  const membershipBatchSize = 100;
+  for (let i = 0; i < orgMembersInDb.length; i += membershipBatchSize) {
+    const batch = orgMembersInDb.slice(i, i + membershipBatchSize);
+    await prisma.membership.createMany({
+      data: batch.map((member) => ({
+        teamId: orgInDb.id,
+        userId: member.id,
+        role: member.orgMembership.role || "MEMBER",
+        accepted: member.orgMembership.accepted ?? false,
+      })),
+    });
+  }
+
+  // Step 4: Fetch created profiles to rebuild orgMembersInDBWithProfileId
+  const createdProfiles = await prisma.profile.findMany({
+    where: {
+      organizationId: orgInDb.id,
+      userId: { in: orgMembersInDb.map((m) => m.id) },
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  const orgMembersInDBWithProfileId = orgMembersInDb.map((member) => ({
+    ...member,
+    profile: {
+      ...member.orgProfile,
+      id: createdProfiles.find((p) => p.userId === member.id)?.id,
+    },
+  }));
 
   // For each member create one event
   for (const member of orgMembersInDBWithProfileId) {
@@ -595,7 +476,7 @@ async function createOrganizationAndAddMembersAndTeams({
 
   // Create memberships for all the organization members with the respective teams
   for (const member of orgMembersInDBWithProfileId) {
-    for (const { slug: teamSlug, role: role } of member.inTeams) {
+    for (const { slug: teamSlug, role } of member.inTeams) {
       const team = organizationTeams.find((t) => t.slug === teamSlug);
       if (!team) {
         throw Error(`Team with slug ${teamSlug} not found`);
@@ -611,6 +492,143 @@ async function createOrganizationAndAddMembersAndTeams({
       });
     }
   }
+}
+
+async function seedApiKey(userId: number, apiKey: string) {
+  const hashedKey = hashAPIKey(apiKey);
+
+  const existingKey = await prisma.apiKey.findFirst({
+    where: { hashedKey },
+  });
+
+  if (existingKey) {
+    console.log(`🔑 API Key already exists, skipping.`);
+    return;
+  }
+
+  await prisma.apiKey.create({
+    data: {
+      userId,
+      hashedKey,
+      note: "Seeded API Key for local development",
+      expiresAt: null,
+    },
+  });
+
+  const apiKeyPrefix = process.env.API_KEY_PREFIX ?? "cal_";
+  console.log(`🔑 Created seeded API Key: ${apiKeyPrefix}${apiKey}`);
+}
+
+async function ensureAcmeOwnerHasApiKeySeeded() {
+  const owner1AcmeUser = await prisma.user.findFirst({
+    where: { email: "owner1-acme@example.com" },
+  });
+  if (owner1AcmeUser) {
+    await seedApiKey(owner1AcmeUser.id, "0123456789abcdef0123456789abcdef");
+  }
+}
+
+async function seedPerHostLocationsInAcmeOrg() {
+  const acmeOrg = await prisma.team.findFirst({
+    where: { slug: "acme", parentId: null },
+    select: { id: true },
+  });
+  if (!acmeOrg) {
+    console.log("Acme org not found, skipping per-host location seeding.");
+    return;
+  }
+
+  const acmeTeam = await prisma.team.findFirst({
+    where: { slug: "team1", parentId: acmeOrg.id },
+    select: { id: true },
+  });
+  if (!acmeTeam) {
+    console.log("Acme Team 1 not found, skipping per-host location seeding.");
+    return;
+  }
+
+  const existingEvent = await prisma.eventType.findFirst({
+    where: { slug: "per-host-location-event", teamId: acmeTeam.id },
+  });
+  if (existingEvent) {
+    console.log("Per-host location event already seeded in Acme, skipping.");
+    return;
+  }
+
+  const owner = await prisma.user.findFirst({
+    where: { email: "owner1-acme@example.com" },
+    select: { id: true },
+  });
+  const member0 = await prisma.user.findFirst({
+    where: { email: "member0-acme@example.com" },
+    select: { id: true },
+  });
+  const member2 = await prisma.user.findFirst({
+    where: { email: "member2-acme@example.com" },
+    select: { id: true },
+  });
+  if (!owner || !member0 || !member2) {
+    console.log("Required Acme members not found, skipping per-host location seeding.");
+    return;
+  }
+
+  const hosts = [owner, member0, member2];
+
+  const ownerProfile = await prisma.profile.findFirst({
+    where: { userId: owner.id, organizationId: acmeOrg.id },
+    select: { id: true },
+  });
+
+  const eventType = await prisma.eventType.create({
+    data: {
+      title: "Per Host Location Event",
+      slug: "per-host-location-event",
+      length: 30,
+      schedulingType: SchedulingType.ROUND_ROBIN,
+      enablePerHostLocations: true,
+      team: { connect: { id: acmeTeam.id } },
+      owner: { connect: { id: owner.id } },
+      ...(ownerProfile ? { profile: { connect: { id: ownerProfile.id } } } : {}),
+      users: { connect: hosts.map((h) => ({ id: h.id })) },
+      hosts: {
+        create: hosts.map((h) => ({
+          userId: h.id,
+          isFixed: false,
+        })),
+      },
+    },
+  });
+
+  await prisma.hostLocation.create({
+    data: {
+      userId: owner.id,
+      eventTypeId: eventType.id,
+      type: "integrations:daily",
+    },
+  });
+
+  await prisma.hostLocation.create({
+    data: {
+      userId: member0.id,
+      eventTypeId: eventType.id,
+      type: "link",
+      link: "https://example.com/meet",
+    },
+  });
+
+  await prisma.hostLocation.create({
+    data: {
+      userId: member2.id,
+      eventTypeId: eventType.id,
+      type: "userPhone",
+      phoneNumber: "+1234567890",
+    },
+  });
+
+  console.log(
+    `Seeded per-host locations in Acme Org for event "${eventType.slug}" (id=${eventType.id}): ` +
+      `owner1->Cal Video, member0->Link, member2->Phone`
+  );
 }
 
 async function main() {
@@ -956,53 +974,6 @@ async function main() {
     },
   });
 
-  await createUserAndEventType({
-    user: {
-      email: "admin@example.com",
-      /** To comply with admin password requirements  */
-      password: "ADMINadmin2022!",
-      username: "admin",
-      name: "Admin Example",
-      role: "ADMIN",
-    },
-  });
-
-  await createPlatformAndSetupUser({
-    teamInput: {
-      name: "Platform Team",
-      slug: "platform-admin-team",
-      isPlatform: true,
-      isOrganization: true,
-      eventTypes: {
-        createMany: {
-          data: [
-            {
-              title: "Collective Seeded Team Event",
-              slug: "collective-seeded-team-event",
-              length: 15,
-              schedulingType: "COLLECTIVE",
-            },
-            {
-              title: "Round Robin Seeded Team Event",
-              slug: "round-robin-seeded-team-event",
-              length: 15,
-              schedulingType: "ROUND_ROBIN",
-            },
-          ],
-        },
-      },
-      createdAt: new Date(),
-    },
-    user: {
-      email: "platform@example.com",
-      /** To comply with admin password requirements  */
-      password: "PLATFORMadmin2024!",
-      username: "platform",
-      name: "Platform Admin",
-      role: "USER",
-    },
-  });
-
   const pro2UserTeam = await createUserAndEventType({
     user: {
       email: "teampro2@example.com",
@@ -1030,7 +1001,33 @@ async function main() {
     },
   });
 
-  if (!!(process.env.E2E_TEST_CALCOM_QA_EMAIL && process.env.E2E_TEST_CALCOM_QA_PASSWORD)) {
+  const admin = await createUserAndEventType({
+    user: {
+      email: "admin@example.com",
+      /** To comply with admin password requirements  */
+      password: "ADMINadmin2022!",
+      username: "admin",
+      name: "Admin Example",
+      role: "ADMIN",
+    },
+  });
+
+  const clientId = process.env.SEED_OAUTH2_CLIENT_ID;
+  const clientSecret = process.env.SEED_OAUTH2_CLIENT_SECRET_HASHED;
+
+  if (clientId && clientSecret) {
+    await createOAuthClientForUser(admin.id, {
+      clientId,
+      clientSecret,
+      name: "atoms examples app oauth 2 client",
+      purpose: "test atoms examples app with oauth 2",
+      redirectUri: "http://localhost:4321",
+      websiteUrl: "http://localhost:4321",
+      enablePkce: false,
+    });
+  }
+
+  if (process.env.E2E_TEST_CALCOM_QA_EMAIL && process.env.E2E_TEST_CALCOM_QA_PASSWORD) {
     await createUserAndEventType({
       user: {
         email: process.env.E2E_TEST_CALCOM_QA_EMAIL || "qa@example.com",
@@ -1046,7 +1043,7 @@ async function main() {
         },
       ],
       credentials: [
-        !!process.env.E2E_TEST_CALCOM_QA_GCAL_CREDENTIALS
+        process.env.E2E_TEST_CALCOM_QA_GCAL_CREDENTIALS
           ? {
               type: "google_calendar",
               key: JSON.parse(process.env.E2E_TEST_CALCOM_QA_GCAL_CREDENTIALS) as Prisma.JsonObject,
@@ -1371,171 +1368,15 @@ async function main() {
     ],
   });
 
-  const seededForm = {
-    id: "948ae412-d995-4865-875a-48302588de03",
-    name: "Seeded Form - Pro",
-  };
+  // Routing forms feature removed - routing form seeding no longer needed
 
-  const form = await prisma.app_RoutingForms_Form.findUnique({
-    where: {
-      id: seededForm.id,
-    },
-  });
-  if (form) {
-    console.log(`Skipping Routing Form - Form Seed, "Seeded Form - Pro" already exists`);
-  } else {
-    const proUser = await prisma.user.findFirst({
-      where: {
-        username: "pro",
-      },
-    });
-
-    if (!proUser) {
-      console.log(`Skipping Routing Form - Seeding - Pro User not found`);
-    } else {
-      const multiSelectLegacyFieldId = "d2292635-9f12-17b1-9153-c3a854649182";
-      await prisma.app_RoutingForms_Form.create({
-        data: {
-          id: seededForm.id,
-          routes: [
-            {
-              id: "8a898988-89ab-4cde-b012-31823f708642",
-              action: { type: "eventTypeRedirectUrl", value: "pro/30min" },
-              queryValue: {
-                id: "8a898988-89ab-4cde-b012-31823f708642",
-                type: "group",
-                children1: {
-                  "8988bbb8-0123-4456-b89a-b1823f70c5ff": {
-                    type: "rule",
-                    properties: {
-                      field: "c1296635-9f12-47b1-8153-c3a854649182",
-                      value: ["event-routing"],
-                      operator: "equal",
-                      valueSrc: ["value"],
-                      valueType: ["text"],
-                    },
-                  },
-                },
-              },
-            },
-            {
-              id: "aa8aaba9-cdef-4012-b456-71823f70f7ef",
-              action: { type: "customPageMessage", value: "Custom Page Result" },
-              queryValue: {
-                id: "aa8aaba9-cdef-4012-b456-71823f70f7ef",
-                type: "group",
-                children1: {
-                  "b99b8a89-89ab-4cde-b012-31823f718ff5": {
-                    type: "rule",
-                    properties: {
-                      field: "c1296635-9f12-47b1-8153-c3a854649182",
-                      value: ["custom-page"],
-                      operator: "equal",
-                      valueSrc: ["value"],
-                      valueType: ["text"],
-                    },
-                  },
-                },
-              },
-            },
-            {
-              id: "a8ba9aab-4567-489a-bcde-f1823f71b4ad",
-              action: { type: "externalRedirectUrl", value: "https://cal.com" },
-              queryValue: {
-                id: "a8ba9aab-4567-489a-bcde-f1823f71b4ad",
-                type: "group",
-                children1: {
-                  "998b9b9a-0123-4456-b89a-b1823f7232b9": {
-                    type: "rule",
-                    properties: {
-                      field: "c1296635-9f12-47b1-8153-c3a854649182",
-                      value: ["external-redirect"],
-                      operator: "equal",
-                      valueSrc: ["value"],
-                      valueType: ["text"],
-                    },
-                  },
-                },
-              },
-            },
-            {
-              id: "aa8ba8b9-0123-4456-b89a-b182623406d8",
-              action: { type: "customPageMessage", value: "Multiselect chosen" },
-              queryValue: {
-                id: "aa8ba8b9-0123-4456-b89a-b182623406d8",
-                type: "group",
-                children1: {
-                  "b98a8abb-cdef-4012-b456-718262343d27": {
-                    type: "rule",
-                    properties: {
-                      field: multiSelectLegacyFieldId,
-                      value: [["Option-2"]],
-                      operator: "multiselect_equals",
-                      valueSrc: ["value"],
-                      valueType: ["multiselect"],
-                    },
-                  },
-                },
-              },
-            },
-            {
-              id: "898899aa-4567-489a-bcde-f1823f708646",
-              action: { type: "customPageMessage", value: "Fallback Message" },
-              isFallback: true,
-              queryValue: { id: "898899aa-4567-489a-bcde-f1823f708646", type: "group" },
-            },
-          ],
-          fields: [
-            {
-              id: "c1296635-9f12-47b1-8153-c3a854649182",
-              type: "text",
-              label: "Test field",
-              required: true,
-            },
-            {
-              id: multiSelectLegacyFieldId,
-              type: "multiselect",
-              label: "Multi Select(with legacy `selectText`)",
-              identifier: "multi",
-              selectText: "Option-1\nOption-2",
-              required: false,
-            },
-            {
-              id: "d3292635-9f12-17b1-9153-c3a854649182",
-              type: "multiselect",
-              label: "Multi Select",
-              identifier: "multi",
-              options: [
-                {
-                  id: "d1234635-9f12-17b1-9153-c3a854649182",
-                  label: "Option-1",
-                },
-                {
-                  id: "d1235635-9f12-17b1-9153-c3a854649182",
-                  label: "Option-2",
-                },
-              ],
-              required: false,
-            },
-          ],
-          user: {
-            connect: {
-              email_username: {
-                username: "pro",
-                email: "pro@example.com",
-              },
-            },
-          },
-          name: seededForm.name,
-        },
-      });
-    }
-  }
+  await ensureAcmeOwnerHasApiKeySeeded();
+  await seedPerHostLocationsInAcmeOrg();
 }
 
 async function runSeed() {
   await prisma.$connect();
-  
+
   await mainAppStore();
   await main();
   await mainHugeEventTypesSeed();

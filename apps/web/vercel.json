@@ -1,10 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron/calendar-cache-cleanup",
-      "schedule": "0 5 * * *"
-    },
-    {
       "path": "/api/cron/calendar-subscriptions",
       "schedule": "*/5 * * * *"
     },
@@ -21,10 +17,6 @@
       "schedule": "* * * * *"
     },
     {
-      "path": "/api/calendar-cache/cron",
-      "schedule": "* * * * *"
-    },
-    {
       "path": "/api/tasks/cleanup",
       "schedule": "0 0 * * *"
     },
@@ -37,18 +29,5 @@
       "schedule": "*/5 * * * *"
     }
   ],
-  "functions": {
-    "app/api/cron/workflows/scheduleEmailReminders/route.ts": {
-      "maxDuration": 800
-    },
-    "app/api/cron/workflows/scheduleSMSReminders/route.ts": {
-      "maxDuration": 800
-    },
-    "app/api/cron/workflows/scheduleWhatsappReminders/route.ts": {
-      "maxDuration": 800
-    },
-    "pages/api/trpc/workflows/[trpc].ts": {
-      "maxDuration": 800
-    }
-  }
+  "functions": {}
 }

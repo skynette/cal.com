@@ -1,16 +1,13 @@
-import { useSearchParams } from "next/navigation";
-
 import { useIsPlatform } from "@calcom/atoms/hooks/useIsPlatform";
 import { useBookerStoreContext } from "@calcom/features/bookings/Booker/BookerStoreProvider";
-import { useBookerTime } from "@calcom/features/bookings/Booker/components/hooks/useBookerTime";
-import type { UseBookingFormReturnType } from "@calcom/features/bookings/Booker/components/hooks/useBookingForm";
+import { useBookerTime } from "@calcom/features/bookings/Booker/hooks/useBookerTime";
+import type { UseBookingFormReturnType } from "@calcom/features/bookings/Booker/hooks/useBookingForm";
 import { mapBookingToMutationInput, mapRecurringBookingToMutationInput } from "@calcom/features/bookings/lib";
 import type { BookingCreateBody } from "@calcom/features/bookings/lib/bookingCreateBodySchema";
 import type { BookerEvent } from "@calcom/features/bookings/types";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
-import type { RoutingFormSearchParams } from "@calcom/platform-types";
 import { showToast } from "@calcom/ui/components/toast";
-
+import { useSearchParams } from "next/navigation";
 import { getUtmTrackingParameters } from "../../lib/getUtmTrackingParameters";
 import type { UseCreateBookingInput } from "./useCreateBooking";
 
@@ -26,11 +23,10 @@ type UseHandleBookingProps = {
   metadata: Record<string, string>;
   hashedLink?: string | null;
   handleBooking: (input: UseCreateBookingInput, callbacks?: Callbacks) => void;
-  handleInstantBooking: (input: BookingCreateBody, callbacks?: Callbacks) => void;
   handleRecBooking: (input: BookingCreateBody[], callbacks?: Callbacks) => void;
   locationUrl?: string;
-  routingFormSearchParams?: RoutingFormSearchParams;
   isBookingDryRun?: boolean;
+  rrHostSubsetIds?: number[];
 };
 
 export const useHandleBookEvent = ({
@@ -39,11 +35,10 @@ export const useHandleBookEvent = ({
   metadata,
   hashedLink,
   handleBooking,
-  handleInstantBooking,
   handleRecBooking,
   locationUrl,
-  routingFormSearchParams,
   isBookingDryRun,
+  rrHostSubsetIds,
 }: UseHandleBookingProps) => {
   const isPlatform = useIsPlatform();
   const setFormValues = useBookerStoreContext((state) => state.setFormValues);
@@ -57,7 +52,6 @@ export const useHandleBookEvent = ({
   const recurringEventCount = useBookerStoreContext((state) => state.recurringEventCount);
   const bookingData = useBookerStoreContext((state) => state.bookingData);
   const seatedEventData = useBookerStoreContext((state) => state.seatedEventData);
-  const isInstantMeeting = useBookerStoreContext((state) => state.isInstantMeeting);
   const orgSlug = useBookerStoreContext((state) => state.org);
   const teamMemberEmail = useBookerStoreContext((state) => state.teamMemberEmail);
   const crmOwnerRecordType = useBookerStoreContext((state) => state.crmOwnerRecordType);
@@ -91,8 +85,8 @@ export const useHandleBookEvent = ({
       const validDuration = event.data.isDynamic
         ? duration || event.data.length
         : duration && event.data.metadata?.multipleDuration?.includes(duration)
-        ? duration
-        : event.data.length;
+          ? duration
+          : event.data.length;
 
       const bookingInput = {
         values,
@@ -112,16 +106,14 @@ export const useHandleBookEvent = ({
         crmAppSlug,
         crmRecordId,
         orgSlug: orgSlug ? orgSlug : undefined,
-        routingFormSearchParams,
         isDryRunProp: isBookingDryRun,
         verificationCode: verificationCode || undefined,
+        rrHostSubsetIds,
       };
 
       const tracking = getUtmTrackingParameters(searchParams);
 
-      if (isInstantMeeting) {
-        handleInstantBooking(mapBookingToMutationInput(bookingInput), callbacks);
-      } else if (event.data?.recurringEvent?.freq != null && recurringEventCount && !rescheduleUid) {
+      if (event.data?.recurringEvent?.freq != null && recurringEventCount && !rescheduleUid) {
         handleRecBooking(
           mapRecurringBookingToMutationInput(bookingInput, recurringEventCount, tracking),
           callbacks

@@ -14,8 +14,6 @@ export type BookingDataSchemaGetter = typeof getBookingDataSchema | typeof getBo
 
 export type CreateRegularBookingData = ExtendedBookingCreateBody;
 
-export type CreateInstantBookingData = ExtendedBookingCreateBody;
-
 export type CreateRecurringBookingData = (ExtendedBookingCreateBody & {
   schedulingType?: SchedulingType;
 })[];
@@ -34,6 +32,7 @@ export type PlatformParams = {
 
 export type CreateBookingMeta = {
   userId?: number;
+  userUuid?: string;
   // These used to come from headers but now we're passing them as params
   hostname?: string;
   forcedSlug?: string;
@@ -47,15 +46,6 @@ export type BookingHandlerInput = {
 
 // TODO: In a followup PR, we working on defining the type here itself instead of inferring it.
 export type RegularBookingCreateResult = Awaited<ReturnType<RegularBookingService["createBooking"]>>;
-
-export type InstantBookingCreateResult = {
-  message: "Success";
-  meetingTokenId: number;
-  bookingId: number;
-  bookingUid: string;
-  expires: Date;
-  userId: number | null;
-};
 
 // More properties to be added to this config in followup PRs
 export type BookingFlowConfig = {

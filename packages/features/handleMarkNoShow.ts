@@ -1,36 +1,96 @@
-import { type TFunction } from "i18next";
-
+import { AttendeeRepository } from "@calcom/features/bookings/repositories/AttendeeRepository";
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
-import { getBookerBaseUrl } from "@calcom/features/ee/organizations/lib/getBookerUrlServer";
-import { workflowSelect } from "@calcom/features/ee/workflows/lib/getAllWorkflows";
-import type { ExtendedCalendarEvent } from "@calcom/features/ee/workflows/lib/reminders/reminderScheduler";
-import { WorkflowService } from "@calcom/features/ee/workflows/lib/service/WorkflowService";
+import { BookingAccessService } from "@calcom/features/bookings/services/BookingAccessService";
 import { WebhookService } from "@calcom/features/webhooks/lib/WebhookService";
-import getOrgIdFromMemberOrTeamId from "@calcom/lib/getOrgIdFromMemberOrTeamId";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
-import { getTranslation } from "@calcom/lib/server/i18n";
+import { getTranslation } from "@calcom/i18n/server";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
 import { prisma } from "@calcom/prisma";
-import { WebhookTriggerEvents, WorkflowTriggerEvents } from "@calcom/prisma/enums";
+import { WebhookTriggerEvents } from "@calcom/prisma/enums";
 import { bookingMetadataSchema, type PlatformClientParams } from "@calcom/prisma/zod-utils";
-import type { TNoShowInputSchema } from "@calcom/trpc/server/routers/loggedInViewer/markNoShow.schema";
-import { getAllWorkflowsFromEventType } from "@calcom/trpc/server/routers/viewer/workflows/util";
+import type { TFunction } from "i18next";
+import { z } from "zod";
+
+export const ZNoShowInputSchema = z
+  .object({
+    bookingUid: z.string(),
+    attendees: z
+      .array(
+        z.object({
+          email: z.string(),
+          noShow: z.boolean(),
+        })
+      )
+      .optional(),
+    noShowHost: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      return (data.attendees && data.attendees.length > 0) || data.noShowHost !== undefined;
+    },
+    {
+      message: "At least one of 'attendees' or 'noShowHost' must be provided",
+      path: ["attendees", "noShowHost"],
+    }
+  );
+
+export type TNoShowInputSchema = z.infer<typeof ZNoShowInputSchema>;
 
 import handleSendingAttendeeNoShowDataToApps from "./noShow/handleSendingAttendeeNoShowDataToApps";
 
 export type NoShowAttendees = { email: string; noShow: boolean }[];
 
-const buildResultPayload = async (
-  bookingUid: string,
-  attendeeEmails: string[],
-  inputAttendees: NonNullable<TNoShowInputSchema["attendees"]>,
-  t: TFunction
-) => {
-  const attendees = await updateAttendees(bookingUid, attendeeEmails, inputAttendees);
+type GetWebhooksServiceArgs = {
+  platformClientId?: string;
+  booking: {
+    id: number;
+    eventType: {
+      id: number;
+      teamId: number | null;
+      userId: number | null;
+    } | null;
+  } | null;
+};
 
-  if (attendees.length === 1) {
-    const [attendee] = attendees;
+type HandleMarkHostNoShowArgs = {
+  bookingUid: string;
+  noShowHost: boolean;
+  locale?: string;
+  platformClientParams?: PlatformClientParams;
+};
+
+type HandleMarkAttendeesAndHostNoShowArgs = {
+  bookingUid: string;
+  attendees?: { email: string; noShow: boolean }[];
+  noShowHost?: boolean;
+  userId: number;
+  locale?: string;
+  platformClientParams?: PlatformClientParams;
+};
+
+type HandleMarkNoShowArgs = {
+  bookingUid: string;
+  attendees?: { email: string; noShow: boolean }[];
+  noShowHost?: boolean;
+  userId?: number;
+  locale?: string;
+  platformClientParams?: PlatformClientParams;
+};
+
+const buildResultPayload = async ({
+  attendees,
+  t,
+  emailToAttendeeMap,
+}: {
+  attendees: NonNullable<TNoShowInputSchema["attendees"]>;
+  t: TFunction;
+  emailToAttendeeMap: EmailToAttendeeMap;
+}): Promise<{ message: string; attendees: NoShowAttendees }> => {
+  const updatedAttendees = await updateAttendees({ attendees, emailToAttendeeMap });
+
+  if (updatedAttendees.length === 1) {
+    const [attendee] = updatedAttendees;
     return {
       message: t(attendee.noShow ? "x_marked_as_no_show" : "x_unmarked_as_no_show", {
         x: attendee.email ?? "User",
@@ -40,15 +100,21 @@ const buildResultPayload = async (
   }
   return {
     message: t("no_show_updated"),
-    attendees: attendees,
+    attendees: updatedAttendees,
   };
 };
 
-const logFailedResults = (results: PromiseSettledResult<any>[]) => {
+const logFailedResults = (results: PromiseSettledResult<unknown>[]) => {
   const failed = results.filter((x) => x.status === "rejected") as PromiseRejectedResult[];
   if (failed.length < 1) return;
   const failedMessage = failed.map((r) => r.reason);
   console.error("Failed to update no-show status", failedMessage.join(","));
+};
+
+type ResponsePayloadResult = {
+  attendees: NoShowAttendees;
+  noShowHost: boolean;
+  message: string;
 };
 
 class ResponsePayload {
@@ -74,7 +140,7 @@ class ResponsePayload {
     this.message = message;
   }
 
-  getPayload() {
+  getPayload(): ResponsePayloadResult {
     return {
       attendees: this.attendees,
       noShowHost: this.noShowHost,
@@ -83,6 +149,21 @@ class ResponsePayload {
   }
 }
 
+type EmailToAttendeeMap = Record<string, { id: number; email: string; noShow: boolean | null }>;
+
+const getBookingAttendeesFromEmails = async (
+  bookingUid: string,
+  emails: string[]
+): Promise<EmailToAttendeeMap> => {
+  const attendeeRepository = new AttendeeRepository(prisma);
+  const dbAttendees = await attendeeRepository.findByBookingUidAndEmails({ bookingUid, emails });
+  const emailToAttendeeMap = dbAttendees.reduce((acc, a) => {
+    acc[a.email] = a;
+    return acc;
+  }, {} as EmailToAttendeeMap);
+  return emailToAttendeeMap;
+};
+
 const handleMarkNoShow = async ({
   bookingUid,
   attendees,
@@ -90,26 +171,36 @@ const handleMarkNoShow = async ({
   userId,
   locale,
   platformClientParams,
-}: TNoShowInputSchema & {
-  userId?: number;
-  locale?: string;
-  platformClientParams?: PlatformClientParams;
-}) => {
+}: HandleMarkNoShowArgs): Promise<ResponsePayloadResult> => {
   const responsePayload = new ResponsePayload();
   const t = await getTranslation(locale ?? "en", "common");
 
   try {
     const attendeeEmails = attendees?.map((attendee) => attendee.email) || [];
 
+    const bookingRepository = new BookingRepository(prisma);
+    const booking = await bookingRepository.findByUidIncludeEventTypeAttendeesAndUser({
+      bookingUid,
+    });
+
+    if (!booking) {
+      throw new HttpError({ statusCode: 404, message: "Booking not found" });
+    }
+
+    const emailToAttendeeMap = await getBookingAttendeesFromEmails(bookingUid, attendeeEmails);
+
     if (attendees && attendeeEmails.length > 0) {
       await assertCanAccessBooking(bookingUid, userId);
 
-      const payload = await buildResultPayload(bookingUid, attendeeEmails, attendees, t);
-
-      const { webhooks, bookingId } = await getWebhooksService(
-        bookingUid,
-        platformClientParams?.platformClientId
-      );
+      const payload = await buildResultPayload({
+        attendees,
+        t,
+        emailToAttendeeMap,
+      });
+      const { webhooks, bookingId } = await getWebhooksService({
+        platformClientId: platformClientParams?.platformClientId,
+        booking,
+      });
 
       await webhooks.sendPayload({
         ...payload,
@@ -119,212 +210,18 @@ const handleMarkNoShow = async ({
         ...(platformClientParams ? platformClientParams : {}),
       });
 
-      const booking = await prisma.booking.findUnique({
-        where: { uid: bookingUid },
-        select: {
-          startTime: true,
-          endTime: true,
-          title: true,
-          metadata: true,
-          uid: true,
-          location: true,
-          destinationCalendar: true,
-          smsReminderNumber: true,
-          userPrimaryEmail: true,
-          eventType: {
-            select: {
-              id: true,
-              hideOrganizerEmail: true,
-              customReplyToEmail: true,
-              schedulingType: true,
-              slug: true,
-              title: true,
-              metadata: true,
-              parentId: true,
-              teamId: true,
-              hosts: {
-                select: {
-                  user: {
-                    select: {
-                      email: true,
-                      destinationCalendar: {
-                        select: {
-                          primaryEmail: true,
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-              parent: {
-                select: {
-                  teamId: true,
-                },
-              },
-              workflows: {
-                select: {
-                  workflow: {
-                    select: workflowSelect,
-                  },
-                },
-              },
-              owner: {
-                select: {
-                  hideBranding: true,
-                  email: true,
-                  name: true,
-                  timeZone: true,
-                  locale: true,
-                },
-              },
-              team: {
-                select: {
-                  parentId: true,
-                  name: true,
-                  id: true,
-                },
-              },
-            },
-          },
-          attendees: {
-            select: {
-              email: true,
-              name: true,
-              timeZone: true,
-              locale: true,
-              phoneNumber: true,
-            },
-          },
-          user: {
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              destinationCalendar: true,
-              timeZone: true,
-              locale: true,
-              username: true,
-              timeFormat: true,
-            },
-          },
-        },
-      });
-
-      if (booking?.eventType) {
-        const workflows = await getAllWorkflowsFromEventType(booking.eventType, userId);
-
-        if (workflows.length > 0) {
-          const tOrganizer = await getTranslation(booking.user?.locale ?? "en", "common");
-          // Cache translations to avoid requesting multiple times.
-          const translations = new Map();
-          const attendeesListPromises = booking.attendees.map(async (attendee) => {
-            const locale = attendee.locale ?? "en";
-            let translate = translations.get(locale);
-            if (!translate) {
-              translate = await getTranslation(locale, "common");
-              translations.set(locale, translate);
-            }
-            return {
-              name: attendee.name,
-              email: attendee.email,
-              timeZone: attendee.timeZone,
-              phoneNumber: attendee.phoneNumber,
-              language: {
-                translate,
-                locale,
-              },
-            };
-          });
-          const attendeesList = await Promise.all(attendeesListPromises);
-          try {
-            const organizer = booking.user || booking.eventType.owner;
-            const parsedMetadata = bookingMetadataSchema.safeParse(booking.metadata);
-            const metadata =
-              parsedMetadata.success && parsedMetadata.data?.videoCallUrl
-                ? { videoCallUrl: parsedMetadata.data.videoCallUrl }
-                : undefined;
-            const bookerUrl = await getBookerBaseUrl(booking.eventType?.team?.parentId ?? null);
-            const destinationCalendar = booking.destinationCalendar
-              ? [booking.destinationCalendar]
-              : booking.user?.destinationCalendar
-              ? [booking.user?.destinationCalendar]
-              : [];
-            const team = booking.eventType?.team
-              ? {
-                  name: booking.eventType.team.name,
-                  id: booking.eventType.team.id,
-                  members: [],
-                }
-              : undefined;
-
-            const calendarEvent: ExtendedCalendarEvent = {
-              type: booking.eventType.slug,
-              title: booking.title,
-              startTime: booking.startTime.toISOString(),
-              endTime: booking.endTime.toISOString(),
-              organizer: {
-                id: booking.user?.id,
-                email: booking?.userPrimaryEmail || booking.user?.email || "Email-less",
-                name: booking.user?.name || "Nameless",
-                username: booking.user?.username || undefined,
-                timeZone: organizer?.timeZone || "UTC",
-                timeFormat: getTimeFormatStringFromUserTimeFormat(booking.user?.timeFormat),
-                language: {
-                  translate: tOrganizer,
-                  locale: booking.user?.locale ?? "en",
-                },
-              },
-              attendees: attendeesList,
-              uid: booking.uid,
-              location: booking.location || "",
-              eventType: {
-                slug: booking.eventType.slug,
-                schedulingType: booking.eventType.schedulingType,
-                hosts: booking.eventType.hosts,
-              },
-              destinationCalendar,
-              bookerUrl,
-              metadata,
-              rescheduleReason: null,
-              cancellationReason: null,
-              hideOrganizerEmail: booking.eventType?.hideOrganizerEmail,
-              eventTypeId: booking.eventType?.id,
-              customReplyToEmail: booking.eventType?.customReplyToEmail,
-              team,
-            };
-
-            await WorkflowService.scheduleWorkflowsFilteredByTriggerEvent({
-              workflows,
-              smsReminderNumber: booking.smsReminderNumber,
-              hideBranding: booking.eventType.owner?.hideBranding,
-              calendarEvent,
-              triggers: [WorkflowTriggerEvents.BOOKING_NO_SHOW_UPDATED],
-            });
-          } catch (error) {
-            logger.error("Error while scheduling workflow reminders for booking no-show updated", error);
-          }
-        }
-      }
-
       responsePayload.setAttendees(payload.attendees);
       responsePayload.setMessage(payload.message);
 
       await handleSendingAttendeeNoShowDataToApps(bookingUid, attendees);
     }
 
-    if (noShowHost) {
-      await prisma.booking.update({
-        where: {
-          uid: bookingUid,
-        },
-        data: {
-          noShowHost: true,
-        },
-      });
-
-      responsePayload.setNoShowHost(true);
+    if (noShowHost !== undefined) {
+      await bookingRepository.updateNoShowHost({ bookingUid, noShowHost });
+      responsePayload.setNoShowHost(noShowHost);
       responsePayload.setMessage(t("booking_no_show_updated"));
     }
+
 
     return responsePayload.getPayload();
   } catch (error) {
@@ -335,40 +232,19 @@ const handleMarkNoShow = async ({
   }
 };
 
-const updateAttendees = async (
-  bookingUid: string,
-  attendeeEmails: string[],
-  attendees: NonNullable<TNoShowInputSchema["attendees"]>
-) => {
-  const allAttendees = await prisma.attendee.findMany({
-    where: {
-      AND: [
-        {
-          booking: {
-            uid: bookingUid,
-          },
-          email: {
-            in: attendeeEmails,
-          },
-        },
-      ],
-    },
-    select: {
-      id: true,
-      email: true,
-    },
-  });
-
-  const allAttendeesMap = allAttendees.reduce((acc, attendee) => {
-    acc[attendee.email] = attendee;
-    return acc;
-  }, {} as Record<string, { id: number; email: string }>);
-
+const updateAttendees = async ({
+  attendees,
+  emailToAttendeeMap,
+}: {
+  attendees: NonNullable<TNoShowInputSchema["attendees"]>;
+  emailToAttendeeMap: EmailToAttendeeMap;
+}): Promise<NoShowAttendees> => {
+  const attendeeRepository = new AttendeeRepository(prisma);
   const updatePromises = attendees.map((attendee) => {
-    const attendeeToUpdate = allAttendeesMap[attendee.email];
-    if (!attendeeToUpdate) return;
-    return prisma.attendee.update({
-      where: { id: attendeeToUpdate.id },
+    const attendeeToUpdate = emailToAttendeeMap[attendee.email];
+    if (!attendeeToUpdate) return null;
+    return attendeeRepository.updateNoShow({
+      where: { attendeeId: attendeeToUpdate.id },
       data: { noShow: attendee.noShow },
     });
   });
@@ -378,34 +254,17 @@ const updateAttendees = async (
 
   return results
     .filter((x) => x.status === "fulfilled")
-    .map((x) => (x as PromiseFulfilledResult<{ noShow: boolean; email: string }>).value)
+    .map((x) => (x as PromiseFulfilledResult<{ noShow: boolean; email: string } | null>).value)
+    .filter((x): x is { noShow: boolean; email: string } => x !== null)
     .map((x) => ({ email: x.email, noShow: x.noShow }));
 };
 
-const getWebhooksService = async (bookingUid: string, platformClientId?: string) => {
-  const booking = await prisma.booking.findUnique({
-    where: { uid: bookingUid },
-    select: {
-      id: true,
-      eventType: {
-        select: {
-          id: true,
-          teamId: true,
-          userId: true,
-        },
-      },
-    },
-  });
-
-  const orgId = await getOrgIdFromMemberOrTeamId({
-    memberId: booking?.eventType?.userId,
-    teamId: booking?.eventType?.teamId,
-  });
+const getWebhooksService = async ({ platformClientId, booking }: GetWebhooksServiceArgs) => {
   const webhooks = await WebhookService.init({
-    teamId: booking?.eventType?.teamId,
+    teamId: null,
     userId: booking?.eventType?.userId,
     eventTypeId: booking?.eventType?.id,
-    orgId,
+    orgId: undefined,
     triggerEvent: WebhookTriggerEvents.BOOKING_NO_SHOW_UPDATED,
     oAuthClientId: platformClientId,
   });
@@ -417,9 +276,14 @@ const assertCanAccessBooking = async (bookingUid: string, userId?: number) => {
   if (!userId) throw new HttpError({ statusCode: 401 });
 
   const bookingRepo = new BookingRepository(prisma);
-  const booking = await bookingRepo.findBookingByUidAndUserId({ bookingUid, userId });
+  const booking = await bookingRepo.findByUidIncludeEventTypeAndReferences({ bookingUid });
+  const bookingAccessService = new BookingAccessService(prisma);
+  const isAuthorized = await bookingAccessService.doesUserIdHaveAccessToBooking({
+    userId,
+    bookingUid,
+  });
 
-  if (!booking)
+  if (!isAuthorized)
     throw new HttpError({ statusCode: 403, message: "You are not allowed to access this booking" });
 
   const isUpcoming = new Date(booking.endTime) >= new Date();
@@ -431,6 +295,43 @@ const assertCanAccessBooking = async (bookingUid: string, userId?: number) => {
       message: "Cannot mark no-show before the meeting has started.",
     });
   }
+};
+
+export const handleMarkHostNoShow = async ({
+  bookingUid,
+  noShowHost,
+  locale,
+  platformClientParams,
+}: HandleMarkHostNoShowArgs): Promise<ResponsePayloadResult> => {
+  return handleMarkNoShow({
+    bookingUid,
+    noShowHost,
+    locale,
+    platformClientParams,
+  });
+};
+
+/**
+ * Handle marking attendees as no-show.
+ * This is called from authenticated endpoints where a logged-in host marks attendees as absent.
+ * Requires userId and userUuid for proper authorization and audit tracking.
+ */
+export const handleMarkAttendeesAndHostNoShow = async ({
+  bookingUid,
+  attendees,
+  noShowHost,
+  userId,
+  locale,
+  platformClientParams,
+}: HandleMarkAttendeesAndHostNoShowArgs): Promise<ResponsePayloadResult> => {
+  return handleMarkNoShow({
+    bookingUid,
+    attendees,
+    noShowHost,
+    userId,
+    locale,
+    platformClientParams,
+  });
 };
 
 export default handleMarkNoShow;

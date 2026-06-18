@@ -8,6 +8,7 @@ import { appKeysSchema as btcpayserver_zod_ts } from "./btcpayserver/zod";
 import { appKeysSchema as closecom_zod_ts } from "./closecom/zod";
 import { appKeysSchema as coinley_zod_ts } from "./coinley/zod";
 import { appKeysSchema as dailyvideo_zod_ts } from "./dailyvideo/zod";
+import { appKeysSchema as databuddy_zod_ts } from "./databuddy/zod";
 import { appKeysSchema as dub_zod_ts } from "./dub/zod";
 import { appKeysSchema as fathom_zod_ts } from "./fathom/zod";
 import { appKeysSchema as feishucalendar_zod_ts } from "./feishucalendar/zod";
@@ -23,6 +24,7 @@ import { appKeysSchema as intercom_zod_ts } from "./intercom/zod";
 import { appKeysSchema as jelly_zod_ts } from "./jelly/zod";
 import { appKeysSchema as jitsivideo_zod_ts } from "./jitsivideo/zod";
 import { appKeysSchema as larkcalendar_zod_ts } from "./larkcalendar/zod";
+import { appKeysSchema as lyra_zod_ts } from "./lyra/zod";
 import { appKeysSchema as make_zod_ts } from "./make/zod";
 import { appKeysSchema as matomo_zod_ts } from "./matomo/zod";
 import { appKeysSchema as metapixel_zod_ts } from "./metapixel/zod";
@@ -35,7 +37,6 @@ import { appKeysSchema as pipedrive_crm_zod_ts } from "./pipedrive-crm/zod";
 import { appKeysSchema as plausible_zod_ts } from "./plausible/zod";
 import { appKeysSchema as posthog_zod_ts } from "./posthog/zod";
 import { appKeysSchema as qr_code_zod_ts } from "./qr_code/zod";
-import { appKeysSchema as routing_forms_zod_ts } from "./routing-forms/zod";
 import { appKeysSchema as salesforce_zod_ts } from "./salesforce/zod";
 import { appKeysSchema as shimmervideo_zod_ts } from "./shimmervideo/zod";
 import { appKeysSchema as stripepayment_zod_ts } from "./stripepayment/zod";
@@ -52,7 +53,6 @@ import { appKeysSchema as zoho_bigin_zod_ts } from "./zoho-bigin/zod";
 import { appKeysSchema as zohocalendar_zod_ts } from "./zohocalendar/zod";
 import { appKeysSchema as zohocrm_zod_ts } from "./zohocrm/zod";
 import { appKeysSchema as zoomvideo_zod_ts } from "./zoomvideo/zod";
-
 export const appKeysSchemas = {
   alby: alby_zod_ts,
   basecamp3: basecamp3_zod_ts,
@@ -60,6 +60,7 @@ export const appKeysSchemas = {
   closecom: closecom_zod_ts,
   coinley: coinley_zod_ts,
   dailyvideo: dailyvideo_zod_ts,
+  databuddy: databuddy_zod_ts,
   dub: dub_zod_ts,
   fathom: fathom_zod_ts,
   feishucalendar: feishucalendar_zod_ts,
@@ -75,6 +76,7 @@ export const appKeysSchemas = {
   jelly: jelly_zod_ts,
   jitsivideo: jitsivideo_zod_ts,
   larkcalendar: larkcalendar_zod_ts,
+  lyra: lyra_zod_ts,
   make: make_zod_ts,
   matomo: matomo_zod_ts,
   metapixel: metapixel_zod_ts,
@@ -87,7 +89,6 @@ export const appKeysSchemas = {
   plausible: plausible_zod_ts,
   posthog: posthog_zod_ts,
   qr_code: qr_code_zod_ts,
-  "routing-forms": routing_forms_zod_ts,
   salesforce: salesforce_zod_ts,
   shimmervideo: shimmervideo_zod_ts,
   stripe: stripepayment_zod_ts,

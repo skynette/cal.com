@@ -3,8 +3,8 @@ import { components as reactSelectComponents } from "react-select";
 
 import classNames from "@calcom/ui/classNames";
 
-import { Badge, CreditsBadge, UpgradeTeamsBadge } from "../../badge";
-import { Icon } from "../../icon";
+import { Badge, CreditsBadge } from "../../badge";
+import { CheckIcon } from "@coss/ui/icons";
 import type { SelectProps } from "./types";
 
 export const InputComponent = <
@@ -19,7 +19,7 @@ export const InputComponent = <
     <reactSelectComponents.Input
       // disables our default form focus highlight on the react-select input element
       inputClassName={classNames(
-        "focus:ring-0 focus:ring-offset-0 !text-default dark:!text-white",
+        "focus:ring-0 focus:ring-offset-0 !text-default dark:text-white!",
         inputClassName
       )}
       {...props}
@@ -30,7 +30,6 @@ export const InputComponent = <
 type ExtendedOption = {
   value: string | number;
   label: string;
-  needsTeamsUpgrade?: boolean;
   needsCredits?: boolean;
   isCalAi?: boolean;
   creditsTeamId?: number;
@@ -58,9 +57,7 @@ export const OptionComponent = <
           )}
           {props.label || <>&nbsp;</>}
         </span>
-        {(props.data as unknown as ExtendedOption).needsTeamsUpgrade ? (
-          <UpgradeTeamsBadge checkForActiveStatus={true} />
-        ) : (props.data as unknown as ExtendedOption).needsCredits ? (
+        {(props.data as unknown as ExtendedOption).needsCredits ? (
           <CreditsBadge
             teamId={(props.data as unknown as ExtendedOption).creditsTeamId}
             isOrganization={(props.data as unknown as ExtendedOption).isOrganization}
@@ -68,7 +65,7 @@ export const OptionComponent = <
         ) : (
           <></>
         )}
-        {props.isSelected && <Icon name="check" className="ml-2 h-4 w-4" />}
+        {props.isSelected && <CheckIcon className="ml-2 h-4 w-4" />}
       </div>
     </reactSelectComponents.Option>
   );

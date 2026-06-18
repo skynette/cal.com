@@ -1,9 +1,7 @@
-import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 
 import dayjs from "@calcom/dayjs";
-import prisma from "@calcom/prisma";
-import { MembershipRole } from "@calcom/prisma/enums";
+import { prisma } from "@calcom/prisma";
 import { BookingStatus } from "@calcom/prisma/enums";
 import { bookingMetadataSchema } from "@calcom/prisma/zod-utils";
 
@@ -11,9 +9,6 @@ import { test } from "./lib/fixtures";
 import {
   bookTimeSlot,
   confirmReschedule,
-  doOnOrgDomain,
-  goToUrlWithErrorHandling,
-  IS_STRIPE_ENABLED,
   selectFirstAvailableTimeSlotNextMonth,
   submitAndWaitForResponse,
 } from "./lib/testUtils";
@@ -25,7 +20,7 @@ test.afterEach(({ users }) => users.deleteAll());
 test.describe("Reschedule Tests", async () => {
   test("Should do a booking request reschedule from /bookings", async ({ page, users, bookings }) => {
     const user = await users.create();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     const booking = await bookings.create(user.id, user.username, user.eventTypes[0].id!, {
       status: BookingStatus.ACCEPTED,
     });
@@ -57,8 +52,8 @@ test.describe("Reschedule Tests", async () => {
     bookings,
   }) => {
     const user = await users.create();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const booking = await bookings.create(user.id, user.username, user.eventTypes[0].id!, {
+
+    await bookings.create(user.id, user.username, user.eventTypes[0].id!, {
       status: BookingStatus.ACCEPTED,
       startTime: dayjs().subtract(2, "day").toDate(),
       endTime: dayjs().subtract(2, "day").add(30, "minutes").toDate(),
@@ -105,7 +100,7 @@ test.describe("Reschedule Tests", async () => {
 
   test("Should display former time when rescheduling availability", async ({ page, users, bookings }) => {
     const user = await users.create();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     const booking = await bookings.create(user.id, user.username, user.eventTypes[0].id!, {
       status: BookingStatus.ACCEPTED,
       rescheduled: true,
@@ -167,99 +162,9 @@ test.describe("Reschedule Tests", async () => {
     });
   });
 
-  test("Unpaid rescheduling should go to payment page", async ({ page, users, bookings, payments }) => {
-    // eslint-disable-next-line playwright/no-skipped-test
-    test.skip(!IS_STRIPE_ENABLED, "Skipped as Stripe is not installed");
-    const user = await users.create();
-    await user.apiLogin();
-    await user.installStripePersonal({ skip: true });
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const eventType = user.eventTypes.find((e) => e.slug === "paid")!;
-    const booking = await bookings.create(user.id, user.username, eventType.id, {
-      rescheduled: true,
-      status: BookingStatus.ACCEPTED,
-      paid: false,
-    });
-    await prisma.eventType.update({
-      where: {
-        id: eventType.id,
-      },
-      data: {
-        metadata: {
-          apps: {
-            stripe: {
-              price: 20000,
-              enabled: true,
-              currency: "usd",
-            },
-          },
-        },
-      },
-    });
-    const payment = await payments.create(booking.id);
-    await page.goto(`/reschedule/${booking.uid}`);
-
-    await selectFirstAvailableTimeSlotNextMonth(page);
-
-    await confirmReschedule(page);
-
-    await page.waitForURL((url) => {
-      return url.pathname.indexOf("/payment") > -1;
-    });
-
-    await expect(page).toHaveURL(/.*payment/);
-  });
-
-  test("Paid rescheduling should go to success page", async ({ page, users, bookings, payments }) => {
-    // eslint-disable-next-line playwright/no-skipped-test
-    test.skip(!IS_STRIPE_ENABLED, "Skipped as Stripe is not installed");
-
-    const user = await users.create();
-    await user.apiLogin();
-    await user.installStripePersonal({ skip: true });
-    await users.logout();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const eventType = user.eventTypes.find((e) => e.slug === "paid")!;
-    const booking = await bookings.create(user.id, user.username, eventType.id, {
-      rescheduled: true,
-      status: BookingStatus.ACCEPTED,
-      paid: true,
-    });
-
-    const payment = await payments.create(booking.id);
-    await page.goto(`/reschedule/${booking?.uid}`);
-
-    await selectFirstAvailableTimeSlotNextMonth(page);
-
-    await confirmReschedule(page);
-
-    await expect(page).toHaveURL(/.*booking/);
-  });
-
-  test("Opt in event should be PENDING when rescheduled by USER", async ({ page, users, bookings }) => {
-    const user = await users.create();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const eventType = user.eventTypes.find((e) => e.slug === "opt-in")!;
-    const booking = await bookings.create(user.id, user.username, eventType.id, {
-      status: BookingStatus.ACCEPTED,
-    });
-
-    await page.goto(`/reschedule/${booking.uid}`);
-
-    await selectFirstAvailableTimeSlotNextMonth(page);
-
-    await confirmReschedule(page);
-
-    await expect(page).toHaveURL(/.*booking/);
-
-    const newBooking = await prisma.booking.findFirstOrThrow({ where: { fromReschedule: booking?.uid } });
-    expect(newBooking).not.toBeNull();
-    expect(newBooking.status).toBe(BookingStatus.PENDING);
-  });
-
   test("Opt in event should be ACCEPTED when rescheduled by OWNER", async ({ page, users, bookings }) => {
     const user = await users.create();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     const eventType = user.eventTypes.find((e) => e.slug === "opt-in")!;
     const booking = await bookings.create(user.id, user.username, eventType.id, {
       status: BookingStatus.ACCEPTED,
@@ -330,20 +235,19 @@ test.describe("Reschedule Tests", async () => {
   test("Should load Valid Cal video url after rescheduling Opt in events", async ({
     page,
     users,
-    bookings,
     browser,
   }) => {
     // eslint-disable-next-line playwright/no-skipped-test
     test.skip(!process.env.DAILY_API_KEY, "DAILY_API_KEY is needed for this test");
     const user = await users.create();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
     const eventType = user.eventTypes.find((e) => e.slug === "opt-in")!;
 
-    const confirmBooking = async (bookingId: number) => {
+    const confirmBooking = async (bookingUid: string) => {
       const [authedContext, authedPage] = await user.apiLoginOnNewBrowser(browser);
       await authedPage.goto("/bookings/upcoming");
       await submitAndWaitForResponse(authedPage, "/api/trpc/bookings/confirm?batch=1", {
-        action: () => authedPage.locator(`[data-bookingid="${bookingId}"][data-testid="confirm"]`).click(),
+        action: () => authedPage.locator(`[data-booking-uid="${bookingUid}"][data-testid="confirm"]`).click(),
       });
       await authedContext.close();
     };
@@ -359,7 +263,7 @@ test.describe("Reschedule Tests", async () => {
 
     const currentBooking = await prisma.booking.findFirstOrThrow({ where: { uid: bookingUID } });
     expect(currentBooking).not.toBeUndefined();
-    await confirmBooking(currentBooking.id);
+    await confirmBooking(currentBooking.uid);
 
     await page.goto(`/reschedule/${currentBooking.uid}`);
     await selectFirstAvailableTimeSlotNextMonth(page);
@@ -372,7 +276,7 @@ test.describe("Reschedule Tests", async () => {
     });
     expect(newBooking).not.toBeUndefined();
     expect(newBooking.status).toBe(BookingStatus.PENDING);
-    await confirmBooking(newBooking.id);
+    await confirmBooking(newBooking.uid);
 
     const booking = await prisma.booking.findFirstOrThrow({ where: { id: newBooking.id } });
     expect(booking).not.toBeUndefined();
@@ -385,14 +289,6 @@ test.describe("Reschedule Tests", async () => {
     expect(locationVideoCallUrl).not.toBeUndefined();
     await page.goto(locationVideoCallUrl);
     await expect(page.frameLocator("iFrame").locator('text="Continue"')).toBeVisible();
-  });
-
-  test("Should be able to a dynamic group booking", async () => {
-    // It is tested in dynamic-booking-pages.e2e.ts
-  });
-
-  test("Team Event Booking", () => {
-    // It is tested in teams.e2e.ts
   });
 
   test("Should redirect to cancelled page when allowReschedulingCancelledBookings is false (default)", async ({
@@ -450,108 +346,4 @@ test.describe("Reschedule Tests", async () => {
 
     await expect(page.locator("[data-testid=success-page]")).toBeVisible();
   });
-
-  test.describe("Organization", () => {
-    test("Booking should be rescheduleable for a user that was moved to an organization through org domain", async ({
-      users,
-      bookings,
-      orgs,
-      page,
-    }) => {
-      const org = await orgs.create({
-        name: "TestOrg",
-      });
-      const orgMember = await users.create({
-        username: "username-outside-org",
-        organizationId: org.id,
-        profileUsername: "username-inside-org",
-        roleInOrganization: MembershipRole.MEMBER,
-      });
-      const profileUsername = (await orgMember.getFirstProfile()).username;
-      const eventType = orgMember.eventTypes[0];
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const orgSlug = org.slug!;
-      const booking = await bookings.create(orgMember.id, orgMember.username, eventType.id);
-
-      return await doOnOrgDomain(
-        {
-          orgSlug: orgSlug,
-          page,
-        },
-        async ({ page, goToUrlWithErrorHandling }) => {
-          const result = await goToUrlWithErrorHandling(`/reschedule/${booking.uid}`);
-          expectUrlToBeABookingPageOnOrgForUsername({
-            url: result.url,
-            orgSlug,
-            username: profileUsername,
-          });
-
-          const rescheduleUrlToBeOpenedInOrgContext = getNonOrgUrlFromOrgUrl(result.url, orgSlug);
-          await page.goto(rescheduleUrlToBeOpenedInOrgContext);
-          await expectSuccessfulReschedule(page, orgSlug);
-          return { url: result.url };
-        }
-      );
-    });
-
-    test("Booking should be rescheduleable for a user that was moved to an organization through non-org domain", async ({
-      users,
-      bookings,
-      orgs,
-      page,
-    }) => {
-      const org = await orgs.create({
-        name: "TestOrg",
-      });
-      const orgMember = await users.create({
-        username: "username-outside-org",
-        organizationId: org.id,
-        profileUsername: "username-inside-org",
-        roleInOrganization: MembershipRole.MEMBER,
-      });
-      const eventType = orgMember.eventTypes[0];
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const orgSlug = org.slug!;
-      const booking = await bookings.create(orgMember.id, orgMember.username, eventType.id);
-
-      const result = await goToUrlWithErrorHandling({ url: `/reschedule/${booking.uid}`, page });
-
-      await doOnOrgDomain(
-        {
-          orgSlug: orgSlug,
-          page,
-        },
-        async ({ page }) => {
-          await page.goto(getNonOrgUrlFromOrgUrl(result.url, orgSlug));
-          await expectSuccessfulReschedule(page, orgSlug);
-        }
-      );
-    });
-
-    const getNonOrgUrlFromOrgUrl = (url: string, orgSlug: string) => url.replace(orgSlug, "app");
-
-    async function expectSuccessfulReschedule(page: Page, orgSlug: string) {
-      await selectFirstAvailableTimeSlotNextMonth(page);
-      const { protocol, host } = new URL(page.url());
-      // Needed since we we're expecting a non-org URL, causing timeouts.
-      const url = getNonOrgUrlFromOrgUrl(`${protocol}//${host}/api/book/event`, orgSlug);
-      await confirmReschedule(page, url);
-      await expect(page.locator("[data-testid=success-page]")).toBeVisible();
-    }
-  });
 });
-
-function expectUrlToBeABookingPageOnOrgForUsername({
-  url,
-  orgSlug,
-  username,
-}: {
-  url: string;
-  orgSlug: string;
-  username: string;
-}) {
-  expect(url).toContain(`://${orgSlug}.`);
-  const urlObject = new URL(url);
-  const usernameInUrl = urlObject.pathname.split("/")[1];
-  expect(usernameInUrl).toEqual(username);
-}

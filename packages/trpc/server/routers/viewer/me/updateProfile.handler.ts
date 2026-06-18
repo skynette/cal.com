@@ -1,18 +1,13 @@
- 
-import { keyBy } from "lodash";
-import type { GetServerSidePropsContext, NextApiResponse } from "next";
-
 import { getPremiumMonthlyPlanPriceId } from "@calcom/app-store/stripepayment/lib/utils";
 import { sendChangeOfEmailVerification } from "@calcom/features/auth/lib/verifyEmail";
-import { StripeBillingService } from "@calcom/features/ee/billing/stripe-billing-service";
-import { updateNewTeamMemberEventTypes } from "@calcom/features/ee/teams/lib/queries";
 import { FeaturesRepository } from "@calcom/features/flags/features.repository";
 import { checkUsername } from "@calcom/features/profile/lib/checkUsername";
+import { ScheduleRepository } from "@calcom/features/schedules/repositories/ScheduleRepository";
 import hasKeyInMetadata from "@calcom/lib/hasKeyInMetadata";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { uploadAvatar } from "@calcom/lib/server/avatar";
-import { getTranslation } from "@calcom/lib/server/i18n";
+import { getTranslation } from "@calcom/i18n/server";
 import { resizeBase64Image } from "@calcom/lib/server/resizeBase64Image";
 import slugify from "@calcom/lib/slugify";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
@@ -20,11 +15,19 @@ import { prisma } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
 import { userMetadata as userMetadataSchema } from "@calcom/prisma/zod-utils";
 import type { TrpcSessionUser } from "@calcom/trpc/server/types";
-
+import type { JsonValue } from "@calcom/types/Json";
 import { TRPCError } from "@trpc/server";
+import { keyBy } from "lodash";
+import type { GetServerSidePropsContext, NextApiResponse } from "next";
+import { type TUpdateProfileInputSchema, updateUserMetadataAllowedKeys } from "./updateProfile.schema";
 
-import { getDefaultScheduleId } from "../availability/util";
-import { updateUserMetadataAllowedKeys, type TUpdateProfileInputSchema } from "./updateProfile.schema";
+const getBillingProviderService = async (..._args: unknown[]) => ({
+  createCustomer: async (..._a: unknown[]) => null,
+  getCustomer: async (..._a: unknown[]) => null,
+  getSubscriptions: async (..._a: unknown[]): Promise<{ items: { data: { price: { id: string } }[] }; status: string }[]> => [],
+  updateCustomer: async (..._a: unknown[]) => null,
+});
+const updateNewTeamMemberEventTypes = async (..._args: unknown[]) => {};
 
 const log = logger.getSubLogger({ prefix: ["updateProfile"] });
 type UpdateProfileOptions = {
@@ -37,7 +40,7 @@ type UpdateProfileOptions = {
 
 export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions) => {
   const { user } = ctx;
-  const billingService = new StripeBillingService();
+  const billingService = await getBillingProviderService();
   const userMetadata = handleUserMetadata({ ctx, input });
   const locale = input.locale || user.locale;
   const featuresRepository = new FeaturesRepository(prisma);
@@ -241,7 +244,22 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
     },
   } satisfies Prisma.UserDefaultArgs;
 
-  let updatedUser: Prisma.UserGetPayload<typeof updatedUserSelect>;
+  // Explicit type to avoid Prisma.UserGetPayload conditional types leaking into .d.ts files
+  type UpdatedUserResult = {
+    id: number;
+    username: string | null;
+    email: string;
+    identityProvider: string | null;
+    identityProviderId: string | null;
+    metadata: JsonValue;
+    name: string | null;
+    createdDate: Date;
+    avatarUrl: string | null;
+    locale: string | null;
+    schedules: { id: number }[];
+  };
+
+  let updatedUser: UpdatedUserResult;
 
   try {
     updatedUser = await prisma.user.update({
@@ -264,7 +282,8 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
 
   if (user.timeZone !== data.timeZone && updatedUser.schedules.length > 0) {
     // on timezone change update timezone of default schedule
-    const defaultScheduleId = await getDefaultScheduleId(user.id, prisma);
+    const scheduleRepository = new ScheduleRepository(prisma);
+    const defaultScheduleId = await scheduleRepository.getDefaultScheduleId(user.id);
 
     if (!user.defaultScheduleId) {
       // set default schedule if not already set
@@ -289,7 +308,7 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
   }
 
   // Notify stripe about the change
-  if (updatedUser && updatedUser.metadata && hasKeyInMetadata(updatedUser, "stripeCustomerId")) {
+  if (updatedUser?.metadata && hasKeyInMetadata(updatedUser, "stripeCustomerId")) {
     const stripeCustomerId = `${updatedUser.metadata.stripeCustomerId}`;
     await billingService.updateCustomer({
       customerId: stripeCustomerId,
@@ -312,8 +331,8 @@ export const updateProfileHandler = async ({ ctx, input }: UpdateProfileOptions)
           username: updatedUser.username ?? "Nameless User",
           emailFrom: user.email,
           // We know email has been changed here so we can use input
-           
-          emailTo: input.email!,
+
+          emailTo: input.email ?? "",
         },
       });
     }

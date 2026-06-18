@@ -1,23 +1,21 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-
 import checkForMultiplePaymentApps from "@calcom/app-store/_utils/payments/checkForMultiplePaymentApps";
 import { locationsResolver } from "@calcom/app-store/locations";
-import { DEFAULT_PROMPT_VALUE, DEFAULT_BEGIN_MESSAGE } from "@calcom/features/calAIPhone/promptTemplates";
-import type { TemplateType } from "@calcom/features/calAIPhone/zod-utils";
-import { sortHosts } from "@calcom/features/eventtypes/components/HostEditDialogs";
+import { stripChildrenForPayload } from "@calcom/features/eventtypes/lib/childrenEventType";
 import { validateCustomEventName } from "@calcom/features/eventtypes/lib/eventNaming";
 import type {
-  FormValues,
   EventTypeSetupProps,
   EventTypeUpdateInput,
+  FormValues,
 } from "@calcom/features/eventtypes/lib/types";
+import { sortHosts } from "@calcom/lib/bookings/hostGroupUtils";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { validateIntervalLimitOrder } from "@calcom/lib/intervalLimits/validateIntervalLimitOrder";
 import { validateBookerLayouts } from "@calcom/lib/validateBookerLayouts";
 import { eventTypeBookingFields as eventTypeBookingFieldsSchema } from "@calcom/prisma/zod-utils";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 
 type Fields = z.infer<typeof eventTypeBookingFieldsSchema>;
 
@@ -86,7 +84,7 @@ export const useEventTypeForm = ({
       offsetStart: eventType.offsetStart,
       bookingFields: eventType.bookingFields,
       periodType: eventType.periodType,
-      periodCountCalendarDays: eventType.periodCountCalendarDays ? true : false,
+      periodCountCalendarDays: !!eventType.periodCountCalendarDays,
       schedulingType: eventType.schedulingType,
       requiresConfirmation: eventType.requiresConfirmation,
       canSendCalVideoTranscriptionEmails: eventType.canSendCalVideoTranscriptionEmails,
@@ -94,6 +92,9 @@ export const useEventTypeForm = ({
       requiresConfirmationForFreeEmail: eventType.requiresConfirmationForFreeEmail,
       slotInterval: eventType.slotInterval,
       minimumBookingNotice: eventType.minimumBookingNotice,
+      minimumRescheduleNotice: eventType.minimumRescheduleNotice ?? null,
+      disabledCancelling: eventType.disableCancelling ?? false,
+      disabledRescheduling: eventType.disableRescheduling ?? false,
       allowReschedulingPastBookings: eventType.allowReschedulingPastBookings,
       hideOrganizerEmail: eventType.hideOrganizerEmail,
       metadata: eventType.metadata,
@@ -118,22 +119,11 @@ export const useEventTypeForm = ({
       })),
       seatsPerTimeSlotEnabled: eventType.seatsPerTimeSlot,
       autoTranslateDescriptionEnabled: eventType.autoTranslateDescriptionEnabled,
+      autoTranslateInstantMeetingTitleEnabled: eventType.autoTranslateInstantMeetingTitleEnabled ?? true,
       rescheduleWithSameRoundRobinHost: eventType.rescheduleWithSameRoundRobinHost,
       assignAllTeamMembers: eventType.assignAllTeamMembers,
       assignRRMembersUsingSegment: eventType.assignRRMembersUsingSegment,
       rrSegmentQueryValue: eventType.rrSegmentQueryValue,
-      aiPhoneCallConfig: {
-        generalPrompt: eventType.aiPhoneCallConfig?.generalPrompt ?? DEFAULT_PROMPT_VALUE,
-        enabled: eventType.aiPhoneCallConfig?.enabled,
-        beginMessage: eventType.aiPhoneCallConfig?.beginMessage ?? DEFAULT_BEGIN_MESSAGE,
-        guestName: eventType.aiPhoneCallConfig?.guestName,
-        guestEmail: eventType.aiPhoneCallConfig?.guestEmail,
-        guestCompany: eventType.aiPhoneCallConfig?.guestCompany,
-        yourPhoneNumber: eventType.aiPhoneCallConfig?.yourPhoneNumber,
-        numberToCall: eventType.aiPhoneCallConfig?.numberToCall,
-        templateType: eventType.aiPhoneCallConfig?.templateType ?? "CUSTOM_TEMPLATE",
-        schedulerName: eventType.aiPhoneCallConfig?.schedulerName,
-      },
       isRRWeightsEnabled: eventType.isRRWeightsEnabled,
       maxLeadThreshold: eventType.maxLeadThreshold,
       includeNoShowInRRCalculation: eventType.includeNoShowInRRCalculation,
@@ -143,6 +133,8 @@ export const useEventTypeForm = ({
       maxActiveBookingsPerBooker: eventType.maxActiveBookingsPerBooker || null,
       maxActiveBookingPerBookerOfferReschedule: eventType.maxActiveBookingPerBookerOfferReschedule,
       showOptimizedSlots: eventType.showOptimizedSlots ?? false,
+      enablePerHostLocations: eventType.enablePerHostLocations ?? false,
+      requiresCancellationReason: eventType.requiresCancellationReason || null,
     };
   }, [eventType, periodDates]);
 
@@ -281,13 +273,11 @@ export const useEventTypeForm = ({
     const updatedFields: Partial<FormValues> = {};
     Object.keys(dirtyFields).forEach((key) => {
       const typedKey = key as keyof typeof dirtyFields;
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       updatedFields[typedKey] = undefined;
       const isDirty = isFieldDirty(typedKey);
       if (isDirty) {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
+        // @ts-expect-error
         updatedFields[typedKey] = values[typedKey];
       }
     });
@@ -374,7 +364,13 @@ export const useEventTypeForm = ({
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { availability, users, scheduleName, ...rest } = input;
+    const { availability, users, scheduleName, disabledCancelling, disabledRescheduling, ...rest } = input;
+    // Strip children down to only the fields the server schema expects.
+    // The full children objects contain avatar, profile, and other display-only
+    // data that bloats the request payload. With many assigned users (~85+),
+    // this can push the request body over the 1MB server limit.
+    const strippedChildren = children ? stripChildrenForPayload(children) : undefined;
+
     const payload = {
       ...rest,
       length,
@@ -396,12 +392,11 @@ export const useEventTypeForm = ({
       seatsShowAvailabilityCount,
       metadata,
       customInputs,
-      children,
+      children: strippedChildren,
       assignAllTeamMembers,
       multiplePrivateLinks: values.multiplePrivateLinks,
-      aiPhoneCallConfig: rest.aiPhoneCallConfig
-        ? { ...rest.aiPhoneCallConfig, templateType: rest.aiPhoneCallConfig.templateType as TemplateType }
-        : undefined,
+      disableCancelling: disabledCancelling,
+      disableRescheduling: disabledRescheduling,
     } satisfies EventTypeUpdateInput;
     // Filter out undefined values
     const filteredPayload = Object.entries(payload).reduce((acc, [key, value]) => {

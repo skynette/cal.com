@@ -3,7 +3,7 @@ import EnvironmentPlugin from "vite-plugin-environment";
 
 import viteBaseConfig, { embedCoreEnvVars } from "../vite.config";
 
-const path = require("path");
+const path = require("node:path");
 const { defineConfig } = require("vite");
 module.exports = defineConfig((configEnv) => {
   /** @type {import('vite').UserConfig} */
@@ -24,7 +24,7 @@ module.exports = defineConfig((configEnv) => {
     server: {
       // Helps us to test that embed works with these headers
       headers: {
-        // TODO: https://github.com/calcom/cal.com/issues/16571
+        // TODO: https://github.com/calcom/cal.diy/issues/16571
         // "Cross-Origin-Embedder-Policy": "require-corp",
       },
     },

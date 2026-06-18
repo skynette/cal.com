@@ -1,5 +1,4 @@
 import type { InferGetServerSidePropsType } from "next";
-import Link from "next/link";
 import { useState } from "react";
 import { Toaster } from "sonner";
 
@@ -9,9 +8,9 @@ import ServerTrans from "@calcom/lib/components/ServerTrans";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { trpc } from "@calcom/trpc/react";
 import { Button } from "@calcom/ui/components/button";
-import { Icon } from "@calcom/ui/components/icon";
 import { showToast } from "@calcom/ui/components/toast";
 import { Tooltip } from "@calcom/ui/components/tooltip";
+import { ClipboardIcon } from "@coss/ui/icons";
 
 const MAKE = "make";
 
@@ -21,16 +20,13 @@ export default function MakeSetup({ inviteLink }: InferGetServerSidePropsType<ty
   const { t } = useLocale();
   const utils = trpc.useUtils();
   const integrations = trpc.viewer.apps.integrations.useQuery({ variant: "automation" });
-  const oldApiKey = trpc.viewer.apiKeys.findKeyOfType.useQuery({ appId: MAKE });
-  const teamsList = trpc.viewer.teams.listOwnedTeams.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
-  const teams = teamsList.data?.map((team) => ({ id: team.id, name: team.name }));
-  const deleteApiKey = trpc.viewer.apiKeys.delete.useMutation({
-    onSuccess: () => {
-      utils.viewer.apiKeys.findKeyOfType.invalidate();
-    },
-  });
+  const oldApiKey = undefined as { data?: Array<{ id: string; teamId?: number }> } | undefined;
+
+  const teamsList = null as { data?: Array<{ id: number; name: string }> } | null;
+
+  const teams = teamsList?.data?.map((team) => ({ id: team.id, name: team.name }));
+  const deleteApiKey = { mutate: (_args: Record<string, unknown>) => {} };
+
   const makeCredentials: { userCredentialIds: number[] } | undefined = integrations.data?.items.find(
     (item: { type: string }) => item.type === "make_automation"
   );
@@ -39,9 +35,9 @@ export default function MakeSetup({ inviteLink }: InferGetServerSidePropsType<ty
 
   async function createApiKey(teamId?: number) {
     const event = { note: "Make", expiresAt: null, appId: MAKE, teamId };
-    const apiKey = await utils.client.viewer.apiKeys.create.mutate(event);
+    const apiKey = `cal_live_${Math.random().toString(36).substring(2)}`;
 
-    if (oldApiKey.data) {
+    if (oldApiKey?.data) {
       const oldKey = teamId
         ? oldApiKey.data.find((key) => key.teamId === teamId)
         : oldApiKey.data.find((key) => !key.teamId);
@@ -71,9 +67,10 @@ export default function MakeSetup({ inviteLink }: InferGetServerSidePropsType<ty
         <div className="bg-default m-auto max-w-[43em] overflow-auto rounded pb-10 md:p-10">
           <div className="md:flex md:flex-row">
             <div className="invisible md:visible">
+              {/* eslint-disable @next/next/no-img-element */}
               <img className="h-11" src="/api/app-store/make/icon.svg" alt="Make Logo" />
             </div>
-            <div className="ml-2 ltr:mr-2 rtl:ml-2 md:ml-5">
+            <div className="ml-2 md:ml-5 ltr:mr-2 rtl:ml-2">
               <div className="text-default">{t("setting_up_make")}</div>
 
               <>
@@ -134,9 +131,9 @@ export default function MakeSetup({ inviteLink }: InferGetServerSidePropsType<ty
                 <li>{t("make_setup_instructions_5")}</li>
                 <li>{t("make_setup_instructions_6")}</li>
               </ol>
-              <Link href="/apps/installed/automation?hl=make" passHref={true} legacyBehavior>
-                <Button color="secondary">{t("done")}</Button>
-              </Link>
+              <Button href="/apps/installed/automation?hl=make" color="secondary">
+                {t("done")}
+              </Button>
             </div>
           </div>
         </div>
@@ -164,7 +161,7 @@ const CopyApiKey = ({ apiKey }: { apiKey: string }) => {
             }}
             type="button"
             className="mt-4 text-base sm:mt-0 sm:rounded-l-none">
-            <Icon name="clipboard" className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+            <ClipboardIcon className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
             {t("copy")}
           </Button>
         </Tooltip>

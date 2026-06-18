@@ -1,19 +1,25 @@
 import type { CreateBookingMeta, CreateRecurringBookingData } from "@calcom/features/bookings/lib/dto/types";
 import type { BookingResponse } from "@calcom/features/bookings/types";
-import { SchedulingType } from "@calcom/prisma/enums";
+import { type CreationSource, SchedulingType } from "@calcom/prisma/enums";
 import type { AppsStatus } from "@calcom/types/Calendar";
-
 import type { IBookingService } from "../interfaces/IBookingService";
 import type { RegularBookingService } from "./RegularBookingService";
-
 export type BookingHandlerInput = {
   bookingData: CreateRecurringBookingData;
 } & CreateBookingMeta;
 
-export const handleNewRecurringBooking = async (
-  input: BookingHandlerInput,
-  deps: IRecurringBookingServiceDependencies
-): Promise<BookingResponse[]> => {
+export const handleNewRecurringBooking = async function (
+  this: RecurringBookingService,
+  {
+    input,
+    deps,
+    creationSource,
+  }: {
+    input: BookingHandlerInput;
+    deps: IRecurringBookingServiceDependencies;
+    creationSource: CreationSource;
+  }
+): Promise<BookingResponse[]> {
   const data = input.bookingData;
   const { regularBookingService } = deps;
   const createdBookings: BookingResponse[] = [];
@@ -30,7 +36,7 @@ export const handleNewRecurringBooking = async (
   const firstBooking = data[0];
   const isRoundRobin = firstBooking.schedulingType === SchedulingType.ROUND_ROBIN;
 
-  let luckyUsers = undefined;
+  let luckyUsers;
 
   const handleBookingMeta = {
     userId: input.userId,
@@ -121,6 +127,7 @@ export const handleNewRecurringBooking = async (
       }
     }
   }
+
   return createdBookings;
 };
 
@@ -137,16 +144,32 @@ export class RecurringBookingService implements IBookingService {
   async createBooking(input: {
     bookingData: CreateRecurringBookingData;
     bookingMeta?: CreateBookingMeta;
+    creationSource: CreationSource;
   }): Promise<BookingResponse[]> {
-    const handlerInput = { bookingData: input.bookingData, ...(input.bookingMeta || {}) };
-    return handleNewRecurringBooking(handlerInput, this.deps);
+    const handlerInput = {
+      bookingData: input.bookingData,
+      ...(input.bookingMeta || {}),
+    };
+    return handleNewRecurringBooking.bind(this)({
+      input: handlerInput,
+      deps: this.deps,
+      creationSource: input.creationSource,
+    });
   }
 
   async rescheduleBooking(input: {
     bookingData: CreateRecurringBookingData;
     bookingMeta?: CreateBookingMeta;
+    creationSource: CreationSource;
   }): Promise<BookingResponse[]> {
-    const handlerInput = { bookingData: input.bookingData, ...(input.bookingMeta || {}) };
-    return handleNewRecurringBooking(handlerInput, this.deps);
+    const handlerInput = {
+      bookingData: input.bookingData,
+      ...(input.bookingMeta || {}),
+    };
+    return handleNewRecurringBooking.bind(this)({
+      input: handlerInput,
+      deps: this.deps,
+      creationSource: input.creationSource,
+    });
   }
 }

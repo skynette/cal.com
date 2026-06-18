@@ -4,8 +4,23 @@ import { useEffect } from "react";
 import type {
   EventTypeAssignedUsers,
   EventTypeHosts,
-} from "@calcom/features/eventtypes/components/EventType";
-import { checkForEmptyAssignment } from "@calcom/features/eventtypes/lib/checkForEmptyAssignment";
+} from "@calcom/features/eventtypes/lib/types";
+
+function checkForEmptyAssignment({
+  assignedUsers,
+  hosts,
+  assignAllTeamMembers,
+  isManagedEventType,
+}: {
+  assignedUsers: EventTypeAssignedUsers;
+  hosts: EventTypeHosts;
+  assignAllTeamMembers: boolean;
+  isManagedEventType: boolean;
+}): boolean {
+  if (assignAllTeamMembers) return false;
+  if (isManagedEventType) return assignedUsers.length === 0;
+  return hosts.length === 0;
+}
 
 export const useHandleRouteChange = ({
   isTeamEventTypeDeleted,

@@ -12,10 +12,7 @@ beforeAll(async () => {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   //@ts-ignore
   process.env.NEXT_PUBLIC_WEBAPP_URL = "http://example.com";
-  const {
-    orgUserRoutePath,
-    orgUserTypeRoutePath,
-  } = require("../../pagesAndRewritePaths");
+  const { orgUserRoutePath, orgUserTypeRoutePath } = await import("../../pagesAndRewritePaths");
 
   orgUserTypeRouteMatch = match(orgUserTypeRoutePath);
 
@@ -71,7 +68,7 @@ describe("next.config.js - Org Rewrite", () => {
       expect(regExp.exec("app.cal.local:3000")).toEqual(null);
     });
 
-    it("Vercel Preview special handling - vercel.app. Cal.com deployed on vercel apps have different subdomains, so we can't consider them org domains", () => {
+    it("Vercel Preview special handling - vercel.app. Cal.diy deployed on vercel apps have different subdomains, so we can't consider them org domains", () => {
       const regExp = new RegExp(getRegExpThatMatchesAllOrgDomains({ webAppUrl: "http://app.vercel.app" }));
       // It is not matching on vercel.app but would have matched in any other case
       expect(regExp.exec("acme.vercel.app")).toEqual(null);
@@ -103,8 +100,11 @@ describe("next.config.js - Org Rewrite", () => {
         type: "def",
       });
 
-      // Team Page won't match - There is no /team prefix required for Org team event pages
-      expect(orgUserTypeRouteMatch("/team/abc")).toEqual(false);
+      // With teams removed, /team/abc is treated as a normal /:user/:type booking page
+      expect(orgUserTypeRouteMatch("/team/abc")?.params).toEqual({
+        user: "team",
+        type: "abc",
+      });
 
       expect(orgUserTypeRouteMatch("/abc")).toEqual(false);
 

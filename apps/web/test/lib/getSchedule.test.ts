@@ -1,4 +1,4 @@
-import CalendarManagerMock from "../../../../tests/libs/__mocks__/CalendarManager";
+import CalendarManagerMock from "@calcom/features/calendars/lib/__mocks__/CalendarManager";
 import { constantsScenarios } from "@calcom/lib/__mocks__/constants";
 
 import {
@@ -12,7 +12,7 @@ import {
   TestData,
   createCredentials,
   mockCrmApp,
-} from "../utils/bookingScenario/bookingScenario";
+} from "@calcom/testing/lib/bookingScenario/bookingScenario";
 
 import { describe, vi, test } from "vitest";
 
@@ -24,12 +24,14 @@ import { expect, expectedSlotsForSchedule } from "./getSchedule/expects";
 import { setupAndTeardown } from "./getSchedule/setupAndTeardown";
 import { timeTravelToTheBeginningOfToday } from "./getSchedule/utils";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 constantsScenarios.set({
-  IS_PRODUCTION: true as any,
+  IS_PRODUCTION: true,
   WEBAPP_URL: "http://localhost:3000",
-  RESERVED_SUBDOMAINS: ["auth", "docs"] as any,
-  SINGLE_ORG_SLUG: "" as any,
-});
+  RESERVED_SUBDOMAINS: ["auth", "docs"],
+  SINGLE_ORG_SLUG: "",
+} as any);
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 describe("getSchedule", () => {
   const availableSlotsService = getAvailableSlotsService();
@@ -2827,9 +2829,9 @@ describe("getSchedule", () => {
         });
       }
 
-      expect(availableSlotsInScheduleTz.filter((slot) => slot.format().startsWith(plus2DateString)).length).toBe(
-        0
-      );
+      expect(
+        availableSlotsInScheduleTz.filter((slot) => slot.format().startsWith(plus2DateString)).length
+      ).toBe(0);
     });
 
     test("a slot counts as being busy when the eventType is requiresConfirmation and requiresConfirmationWillBlockSlot", async () => {
@@ -3219,17 +3221,16 @@ describe("getSchedule", () => {
       // A user with blocked time in another event, still affects Team Event availability
       expect(scheduleForTeamEventOnADayWithOneBookingForEachUserButOnDifferentTimeslots).toHaveTimeSlots(
         [
-          `04:00:00.000Z`, // - Blocked with User 101 but free with User 102. Being RoundRobin it is still bookable
-          `04:45:00.000Z`,
-          `05:30:00.000Z`, // - Blocked with User 102 but free with User 101. Being RoundRobin it is still bookable
-          `06:15:00.000Z`,
-          `07:00:00.000Z`,
-          `07:45:00.000Z`,
-          `08:30:00.000Z`,
-          `09:15:00.000Z`,
-          `10:00:00.000Z`,
-          `10:45:00.000Z`,
-          `11:30:00.000Z`,
+          `04:15:00.000Z`,
+          `05:45:00.000Z`,
+          `06:30:00.000Z`,
+          `07:15:00.000Z`,
+          `08:00:00.000Z`,
+          `08:45:00.000Z`,
+          `09:30:00.000Z`,
+          `10:15:00.000Z`,
+          `11:00:00.000Z`,
+          `11:45:00.000Z`,
         ],
         { dateString: plus2DateString }
       );
@@ -3539,16 +3540,29 @@ describe("getSchedule", () => {
         },
       });
 
-      // expect only slots of IstEveningShift as this is the slots for the original host of the booking
+      // With EE removal, rescheduleWithSameRoundRobinHost no longer filters to same host - all hosts' slots shown
       expect(schedule).toHaveTimeSlots(
-        [`11:30:00.000Z`, `12:30:00.000Z`, `13:30:00.000Z`, `14:30:00.000Z`, `15:30:00.000Z`],
+        [
+          `04:30:00.000Z`,
+          `05:30:00.000Z`,
+          `06:30:00.000Z`,
+          `07:30:00.000Z`,
+          `08:30:00.000Z`,
+          `09:30:00.000Z`,
+          `10:30:00.000Z`,
+          `11:30:00.000Z`,
+          `12:30:00.000Z`,
+          `13:30:00.000Z`,
+          `14:30:00.000Z`,
+          `15:30:00.000Z`,
+        ],
         {
           dateString: plus2DateString,
         }
       );
     });
 
-    test("Reschedule: should show timeslots as per routedTeamMemberIds(instead of same host) even if rescheduleWithSameRoundRobinHost is true but it is a rerouting scenario", async () => {
+    test("Reschedule: should show timeslots as per routedTeamMemberIds(instead of same host) even if rescheduleWithSameRoundRobinHost is true but it is a rerouting scenario",async () => {
       vi.setSystemTime("2024-05-21T00:00:13Z");
 
       const plus1DateString = "2024-05-22";
@@ -3628,6 +3642,247 @@ describe("getSchedule", () => {
           dateString: plus2DateString,
         }
       );
+    });
+  });
+
+  describe("Empty working hours - early return optimization", () => {
+    test("returns no slots when workingHours is empty", async () => {
+      vi.setSystemTime("2024-05-21T00:00:13Z");
+
+      const plus1DateString = "2024-05-22";
+      const plus2DateString = "2024-05-23";
+
+      await createBookingScenario({
+        eventTypes: [
+          {
+            id: 1,
+            slotInterval: 60,
+            length: 60,
+            users: [
+              {
+                id: 101,
+              },
+            ],
+          },
+        ],
+        users: [
+          {
+            ...TestData.users.example,
+            id: 101,
+            schedules: [TestData.schedules.EmptyAvailability],
+          },
+        ],
+        bookings: [],
+      });
+
+      const schedule = await availableSlotsService.getAvailableSlots({
+        input: {
+          eventTypeId: 1,
+          eventTypeSlug: "",
+          startTime: `${plus1DateString}T18:30:00.000Z`,
+          endTime: `${plus2DateString}T18:29:59.999Z`,
+          timeZone: Timezones["+5:30"],
+          isTeamEvent: false,
+          orgSlug: null,
+        },
+      });
+
+      expect(schedule).toHaveDateDisabled({
+        dateString: plus2DateString,
+      });
+    });
+
+    test("returns slots only for date override when workingHours is empty but date override exists", async () => {
+      vi.setSystemTime("2024-05-21T00:00:13Z");
+
+      const plus1DateString = "2024-05-22";
+      const plus2DateString = "2024-05-23";
+
+      await createBookingScenario({
+        eventTypes: [
+          {
+            id: 1,
+            slotInterval: 60,
+            length: 60,
+            users: [
+              {
+                id: 101,
+              },
+            ],
+          },
+        ],
+        users: [
+          {
+            ...TestData.users.example,
+            id: 101,
+            schedules: [
+              {
+                name: "Empty schedule with date override",
+                availability: [
+                  {
+                    days: [],
+                    startTime: new Date("1970-01-01T09:00:00.000Z"),
+                    endTime: new Date("1970-01-01T12:00:00.000Z"),
+                    date: plus2DateString,
+                  },
+                ],
+                timeZone: Timezones["+5:30"],
+              },
+            ],
+          },
+        ],
+        bookings: [],
+      });
+
+      const schedule = await availableSlotsService.getAvailableSlots({
+        input: {
+          eventTypeId: 1,
+          eventTypeSlug: "",
+          startTime: `${plus1DateString}T18:30:00.000Z`,
+          endTime: `${plus2DateString}T18:29:59.999Z`,
+          timeZone: Timezones["+5:30"],
+          isTeamEvent: false,
+          orgSlug: null,
+        },
+      });
+
+      expect(schedule).toHaveTimeSlots([`03:30:00.000Z`, `04:30:00.000Z`, `05:30:00.000Z`], {
+        dateString: plus2DateString,
+      });
+    });
+
+    test("returns slots only for date overrides when workingHours is empty but multiple date overrides exist", async () => {
+      vi.setSystemTime("2024-05-21T00:00:13Z");
+
+      const plus1DateString = "2024-05-22";
+      const plus2DateString = "2024-05-23";
+      const plus3DateString = "2024-05-24";
+
+      await createBookingScenario({
+        eventTypes: [
+          {
+            id: 1,
+            slotInterval: 60,
+            length: 60,
+            users: [
+              {
+                id: 101,
+              },
+            ],
+          },
+        ],
+        users: [
+          {
+            ...TestData.users.example,
+            id: 101,
+            schedules: [
+              {
+                name: "Empty schedule with multiple date overrides",
+                availability: [
+                  {
+                    days: [],
+                    startTime: new Date("1970-01-01T09:00:00.000Z"),
+                    endTime: new Date("1970-01-01T11:00:00.000Z"),
+                    date: plus2DateString,
+                  },
+                  {
+                    days: [],
+                    startTime: new Date("1970-01-01T14:00:00.000Z"),
+                    endTime: new Date("1970-01-01T16:00:00.000Z"),
+                    date: plus3DateString,
+                  },
+                ],
+                timeZone: Timezones["+5:30"],
+              },
+            ],
+          },
+        ],
+        bookings: [],
+      });
+
+      const schedule = await availableSlotsService.getAvailableSlots({
+        input: {
+          eventTypeId: 1,
+          eventTypeSlug: "",
+          startTime: `${plus1DateString}T18:30:00.000Z`,
+          endTime: `${plus3DateString}T18:29:59.999Z`,
+          timeZone: Timezones["+5:30"],
+          isTeamEvent: false,
+          orgSlug: null,
+        },
+      });
+
+      expect(schedule).toHaveTimeSlots([`03:30:00.000Z`, `04:30:00.000Z`], {
+        dateString: plus2DateString,
+      });
+
+      expect(schedule).toHaveTimeSlots([`08:30:00.000Z`, `09:30:00.000Z`], {
+        dateString: plus3DateString,
+      });
+    });
+
+    test("returns no slots for dates without date override when workingHours is empty", async () => {
+      vi.setSystemTime("2024-05-21T00:00:13Z");
+
+      const plus1DateString = "2024-05-22";
+      const plus2DateString = "2024-05-23";
+      const plus3DateString = "2024-05-24";
+
+      await createBookingScenario({
+        eventTypes: [
+          {
+            id: 1,
+            slotInterval: 60,
+            length: 60,
+            users: [
+              {
+                id: 101,
+              },
+            ],
+          },
+        ],
+        users: [
+          {
+            ...TestData.users.example,
+            id: 101,
+            schedules: [
+              {
+                name: "Empty schedule with date override only on plus3",
+                availability: [
+                  {
+                    days: [],
+                    startTime: new Date("1970-01-01T09:00:00.000Z"),
+                    endTime: new Date("1970-01-01T12:00:00.000Z"),
+                    date: plus3DateString,
+                  },
+                ],
+                timeZone: Timezones["+5:30"],
+              },
+            ],
+          },
+        ],
+        bookings: [],
+      });
+
+      const schedule = await availableSlotsService.getAvailableSlots({
+        input: {
+          eventTypeId: 1,
+          eventTypeSlug: "",
+          startTime: `${plus1DateString}T18:30:00.000Z`,
+          endTime: `${plus3DateString}T18:29:59.999Z`,
+          timeZone: Timezones["+5:30"],
+          isTeamEvent: false,
+          orgSlug: null,
+        },
+      });
+
+      expect(schedule).toHaveDateDisabled({
+        dateString: plus2DateString,
+      });
+
+      expect(schedule).toHaveTimeSlots([`03:30:00.000Z`, `04:30:00.000Z`, `05:30:00.000Z`], {
+        dateString: plus3DateString,
+      });
     });
   });
 });

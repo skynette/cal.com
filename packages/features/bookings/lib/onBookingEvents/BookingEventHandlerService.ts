@@ -1,25 +1,30 @@
-import type { Logger } from "tslog";
-
+import type { ISimpleLogger } from "@calcom/features/di/shared/services/logger.service";
 import type { HashedLinkService } from "@calcom/features/hashedLink/lib/service/HashedLinkService";
 import { safeStringify } from "@calcom/lib/safeStringify";
-
 import type { BookingCreatedPayload, BookingRescheduledPayload } from "./types";
 
 interface BookingEventHandlerDeps {
-  log: Logger<unknown>;
+  log: ISimpleLogger;
   hashedLinkService: HashedLinkService;
+}
+
+interface OnBookingCreatedParams {
+  payload: BookingCreatedPayload;
+}
+
+interface OnBookingRescheduledParams {
+  payload: BookingRescheduledPayload;
 }
 
 export class BookingEventHandlerService {
   private readonly log: BookingEventHandlerDeps["log"];
-  private readonly hashedLinkService: BookingEventHandlerDeps["hashedLinkService"];
 
   constructor(private readonly deps: BookingEventHandlerDeps) {
     this.log = deps.log;
-    this.hashedLinkService = deps.hashedLinkService;
   }
 
-  async onBookingCreated(payload: BookingCreatedPayload) {
+  async onBookingCreated(params: OnBookingCreatedParams) {
+    const { payload } = params;
     this.log.debug("onBookingCreated", safeStringify(payload));
     if (payload.config.isDryRun) {
       return;
@@ -27,7 +32,8 @@ export class BookingEventHandlerService {
     await this.onBookingCreatedOrRescheduled(payload);
   }
 
-  async onBookingRescheduled(payload: BookingRescheduledPayload) {
+  async onBookingRescheduled(params: OnBookingRescheduledParams) {
+    const { payload } = params;
     this.log.debug("onBookingRescheduled", safeStringify(payload));
     if (payload.config.isDryRun) {
       return;
@@ -35,13 +41,8 @@ export class BookingEventHandlerService {
     await this.onBookingCreatedOrRescheduled(payload);
   }
 
-  /**
-   * Handles common tasks that need to be executed in both booking created and rescheduled events
-   * A dedicated place because there are many tasks that need to be executed in both events.
-   */
   private async onBookingCreatedOrRescheduled(payload: BookingCreatedPayload | BookingRescheduledPayload) {
     const results = await Promise.allSettled([
-      // TODO: Migrate other post-booking tasks here, to execute them in parallel, without affecting each other
       this.updatePrivateLinkUsage(payload.bookingFormData.hashedLink),
     ]);
     results.forEach((result) => {

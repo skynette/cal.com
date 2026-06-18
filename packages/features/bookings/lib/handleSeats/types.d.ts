@@ -1,7 +1,8 @@
 import type z from "zod";
 
-import type { Workflow } from "@calcom/features/ee/workflows/lib/types";
+import type { TraceContext } from "@calcom/lib/tracing";
 import type { Prisma } from "@calcom/prisma/client";
+import type { BuiltCalendarEvent } from "@calcom/features/CalendarEventBuilder";
 import type { AppsStatus, CalendarEvent } from "@calcom/types/Calendar";
 
 import type { Booking } from "../handleNewBooking/createBooking";
@@ -26,9 +27,7 @@ export type NewSeatedBookingObject = {
   rescheduleUid: string | undefined;
   reqBookingUid: string | undefined;
   eventType: NewBookingEventType;
-  evt: Omit<CalendarEvent, "bookerUrl"> & {
-    bookerUrl: string;
-  };
+  evt: BuiltCalendarEvent;
   invitee: Invitee;
   allCredentials: Awaited<ReturnType<typeof getAllCredentialsIncludeServiceAccountKey>>;
   organizerUser: OrganizerUser;
@@ -38,6 +37,7 @@ export type NewSeatedBookingObject = {
   tAttendees: TFunction;
   bookingSeat: BookingSeat;
   reqUserId: number | undefined;
+  reqUserUuid?: string | null;
   rescheduleReason: RescheduleReason;
   reqBodyUser: string | string[] | undefined;
   noEmail: NoEmail;
@@ -56,8 +56,8 @@ export type NewSeatedBookingObject = {
   eventTrigger: WebhookTriggerEvents;
   responses: z.infer<ReturnType<typeof getBookingDataSchema>>["responses"] | null;
   rescheduledBy?: string;
-  workflows: Workflow[];
   isDryRun?: boolean;
+  traceContext: TraceContext;
 };
 
 export type RescheduleSeatedBookingObject = NewSeatedBookingObject & { rescheduleUid: string };
@@ -79,12 +79,12 @@ export type SeatedBooking = Prisma.BookingGetPayload<{
 
 export type HandleSeatsResultBooking =
   | (Partial<Booking> & {
-      appsStatus?: AppsStatus[];
-      seatReferenceUid?: string;
-      paymentUid?: string;
-      message?: string;
-      paymentId?: number;
-    })
+    appsStatus?: AppsStatus[];
+    seatReferenceUid?: string;
+    paymentUid?: string;
+    message?: string;
+    paymentId?: number;
+  })
   | null;
 
 export type NewTimeSlotBooking = Prisma.BookingGetPayload<{

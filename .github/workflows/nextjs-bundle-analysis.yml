@@ -49,12 +49,15 @@ env:
 jobs:
   analyze:
     if: always()
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/dangerous-git-checkout
+        with:
+          sparse-checkout: .github
+      - uses: ./.github/actions/cache-checkout
       - uses: ./.github/actions/yarn-install
+      - run: yarn prisma generate
       - uses: ./.github/actions/cache-build
       - name: Analyze bundle
         run: |
@@ -67,3 +70,13 @@ jobs:
         with:
           name: bundle
           path: apps/web/.next/analyze/__bundle_analysis.json
+
+      - name: Delete cached build
+        continue-on-error: true
+        run: |
+          gh extension install actions/gh-actions-cache
+          for key in $(gh actions-cache list -R ${{ github.repository }} --key "prod-build-main-" --limit 100 | cut -f1); do
+            gh actions-cache delete "$key" -R ${{ github.repository }} --confirm
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
