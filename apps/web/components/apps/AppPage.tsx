@@ -126,7 +126,12 @@ export const AppPage = ({
       return;
     }
     setIsLoading(true);
-    if (isConferencing(categories) && !concurrentMeetings) {
+    if (slug === "stablezact") {
+      // Stablezact needs its public key before it can charge anyone. Its add
+      // handler creates the credential and redirects to the setup page, so
+      // install straight to key entry instead of the event-type wizard.
+      mutation.mutate({ type });
+    } else if (isConferencing(categories) && !concurrentMeetings) {
       mutation.mutate({
         type,
         variant,

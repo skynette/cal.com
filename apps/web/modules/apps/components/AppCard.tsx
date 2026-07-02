@@ -71,7 +71,12 @@ export function AppCard({ app, credentials, searchText, userAdminTeams }: AppCar
       if (app.url) window.open(app.url, "_blank", "noopener,noreferrer");
       return;
     }
-    if (isConferencing(app.categories) && !app.concurrentMeetings) {
+    if (app.slug === "stablezact") {
+      // Stablezact needs its public key before it can charge anyone. Its add
+      // handler creates the credential and redirects to the setup page, so
+      // install straight to key entry instead of the event-type wizard.
+      mutation.mutate({ type: app.type });
+    } else if (isConferencing(app.categories) && !app.concurrentMeetings) {
       mutation.mutate({
         type: app.type,
         variant: app.variant,
