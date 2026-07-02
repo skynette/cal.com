@@ -279,7 +279,14 @@ const OnboardingPage = ({
                 }
                 try {
                   await Promise.all(mutationPromises);
-                  router.push("/event-types");
+                  // Stablezact authenticates charges with the merchant's public
+                  // key, which the onboarding wizard never collects, so route to
+                  // the setup page to connect it as the final install step.
+                  if (appMetadata.slug === "stablezact") {
+                    router.push(`/apps/${appMetadata.slug}/setup`);
+                  } else {
+                    router.push("/event-types");
+                  }
                 } catch (err) {
                   console.error(err);
                 }
