@@ -407,4 +407,11 @@ export class PaymentService implements IAbstractPaymentService {
   }
 }
 
+// cal.com's handlePayment resolves payment apps via a `BuildPaymentService` export
+// (isPaymentService check). Without it the payment step silently no-ops and the
+// booking is confirmed unpaid. Factory export mirrors the other payment apps.
+export function BuildPaymentService(credentials: { key: Prisma.JsonValue }): IAbstractPaymentService {
+  return new PaymentService(credentials);
+}
+
 export default PaymentService;
