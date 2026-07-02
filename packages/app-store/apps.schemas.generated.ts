@@ -6,7 +6,6 @@ import { appDataSchema as alby_zod_ts } from "./alby/zod";
 import { appDataSchema as basecamp3_zod_ts } from "./basecamp3/zod";
 import { appDataSchema as btcpayserver_zod_ts } from "./btcpayserver/zod";
 import { appDataSchema as closecom_zod_ts } from "./closecom/zod";
-import { appDataSchema as coinley_zod_ts } from "./coinley/zod";
 import { appDataSchema as dailyvideo_zod_ts } from "./dailyvideo/zod";
 import { appDataSchema as databuddy_zod_ts } from "./databuddy/zod";
 import { appDataSchema as dub_zod_ts } from "./dub/zod";
@@ -39,6 +38,7 @@ import { appDataSchema as posthog_zod_ts } from "./posthog/zod";
 import { appDataSchema as qr_code_zod_ts } from "./qr_code/zod";
 import { appDataSchema as salesforce_zod_ts } from "./salesforce/zod";
 import { appDataSchema as shimmervideo_zod_ts } from "./shimmervideo/zod";
+import { appDataSchema as stablezact_zod_ts } from "./stablezact/zod";
 import { appDataSchema as stripepayment_zod_ts } from "./stripepayment/zod";
 import { appDataSchema as tandemvideo_zod_ts } from "./tandemvideo/zod";
 import { appDataSchema as booking_pages_tag_zod_ts } from "./templates/booking-pages-tag/zod";
@@ -58,7 +58,6 @@ export const appDataSchemas = {
   basecamp3: basecamp3_zod_ts,
   btcpayserver: btcpayserver_zod_ts,
   closecom: closecom_zod_ts,
-  coinley: coinley_zod_ts,
   dailyvideo: dailyvideo_zod_ts,
   databuddy: databuddy_zod_ts,
   dub: dub_zod_ts,
@@ -91,6 +90,7 @@ export const appDataSchemas = {
   qr_code: qr_code_zod_ts,
   salesforce: salesforce_zod_ts,
   shimmervideo: shimmervideo_zod_ts,
+  stablezact: stablezact_zod_ts,
   stripe: stripepayment_zod_ts,
   tandemvideo: tandemvideo_zod_ts,
   "booking-pages-tag": booking_pages_tag_zod_ts,

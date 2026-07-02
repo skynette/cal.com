@@ -23,8 +23,8 @@ export type SupportedCurrency = typeof SUPPORTED_CURRENCIES[number];
 // Validate API credentials
 export const appKeysSchema = z.object({
   public_key: z.string().startsWith('pk_', "Public key must start with 'pk_'").min(10, "Valid public key is required"),
-  // Note: API URL is hardcoded in the Coinley SDK/backend - users don't provide it
-  // Note: Merchant wallet addresses are configured in the Coinley merchant dashboard
+  // Note: API URL is hardcoded in the Stablezact SDK/backend - users don't provide it
+  // Note: Merchant wallet addresses are configured in the Stablezact merchant dashboard
   // and retrieved via the merchant's public key, not stored in Cal.com
 });
 

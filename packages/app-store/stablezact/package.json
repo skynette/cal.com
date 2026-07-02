@@ -1,7 +1,7 @@
 {
-  "name": "@calcom/coinley",
+  "name": "@calcom/stablezact",
   "version": "0.0.1",
-  "description": "Accept cryptocurrency payments with Coinley",
+  "description": "Accept cryptocurrency payments with Stablezact",
   "main": "./index.ts",
   "types": "./index.ts",
   "private": true,

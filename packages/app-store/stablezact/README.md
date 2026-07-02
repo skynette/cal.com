@@ -1,6 +1,6 @@
-# Coinley Payment Integration
+# Stablezact Payment Integration
 
-Accept cryptocurrency payments for your Cal.com bookings with Coinley. Support for USDT and USDC stablecoins across 8 EVM blockchains.
+Accept cryptocurrency payments for your Cal.com bookings with Stablezact. Support for USDT and USDC stablecoins across 8 EVM blockchains.
 
 ## Features
 
@@ -14,18 +14,18 @@ Accept cryptocurrency payments for your Cal.com bookings with Coinley. Support f
 
 ## Installation
 
-### 1. Get Coinley Public Key
+### 1. Get Stablezact Public Key
 
-1. Sign up at [https://merchant.coinley.io](https://merchant.coinley.io)
-2. Go to Settings page at [https://merchant.coinley.io/settings](https://merchant.coinley.io/settings)
+1. Sign up at [https://merchant.stablezact.com](https://merchant.stablezact.com)
+2. Go to Settings page at [https://merchant.stablezact.com/settings](https://merchant.stablezact.com/settings)
 3. Copy your public key (starts with `pk_`)
 4. Your public key is safe to store in Cal.com as it's read-only
 
 ### 2. **IMPORTANT: Configure Merchant Wallets First**
 
-⚠️ **Before installing in Cal.com**, you must configure your wallet addresses in the Coinley dashboard:
+⚠️ **Before installing in Cal.com**, you must configure your wallet addresses in the Stablezact dashboard:
 
-1. Go to [https://merchant.coinley.io/dashboard/wallets](https://merchant.coinley.io/dashboard/wallets)
+1. Go to [https://merchant.stablezact.com/dashboard/wallets](https://merchant.stablezact.com/dashboard/wallets)
 2. Add wallet addresses for each blockchain you want to support:
    - Ethereum (ETH)
    - BSC (Binance Smart Chain)
@@ -33,15 +33,20 @@ Accept cryptocurrency payments for your Cal.com bookings with Coinley. Support f
    - Arbitrum, Optimism, Avalanche, Celo, Base
 3. Ensure you control these wallet addresses (use MetaMask, Ledger, or hardware wallet)
 
-**Note:** Wallet addresses are configured in your Coinley merchant account, NOT during Cal.com installation. The Coinley backend automatically uses the correct wallet based on the blockchain network selected by your customers.
+**Note:** Wallet addresses are configured in your Stablezact merchant account, NOT during Cal.com installation. The Stablezact backend automatically uses the correct wallet based on the blockchain network selected by your customers.
 
 ### 3. Configure Environment Variables (Optional - Self-Hosting Only)
 
-If self-hosting Cal.com and want to use a custom Coinley API URL, add to your `.env.appStore`:
+If self-hosting Cal.com and want to use a custom Stablezact API URL, add to your `.env.appStore`:
 
 ```bash
-COINLEY_API_URL=https://talented-mercy-production.up.railway.app
-NEXT_PUBLIC_COINLEY_API_URL=https://talented-mercy-production.up.railway.app
+# Production (default)
+STABLEZACT_API_URL=https://hub.stablezact.com
+NEXT_PUBLIC_STABLEZACT_API_URL=https://hub.stablezact.com
+
+# Staging environment (uncomment to use instead)
+# STABLEZACT_API_URL=https://talented-mercy-production.up.railway.app
+# NEXT_PUBLIC_STABLEZACT_API_URL=https://talented-mercy-production.up.railway.app
 ```
 
 **Note:** The public key is entered during installation in Step 4, not in environment variables.
@@ -49,10 +54,10 @@ NEXT_PUBLIC_COINLEY_API_URL=https://talented-mercy-production.up.railway.app
 ### 4. Install in Cal.com
 
 1. Go to Cal.com App Store → Payment Apps
-2. Find "Coinley Crypto Payments"
+2. Find "Stablezact Crypto Payments"
 3. Click "Install"
 4. Enter your **Public Key** (from Step 1)
-5. Click "Connect Coinley"
+5. Click "Connect Stablezact"
 
 The integration will automatically use the wallet addresses you configured in Step 2.
 
@@ -60,7 +65,7 @@ The integration will automatically use the wallet addresses you configured in St
 
 1. Go to Event Types → Select an event
 2. Scroll to "Apps" section
-3. Enable Coinley
+3. Enable Stablezact
 4. Configure:
    - Price (in USD)
    - Preferred cryptocurrency (USDT, USDC, etc.)
@@ -75,12 +80,12 @@ The integration will automatically use the wallet addresses you configured in St
 ### Payment Flow
 
 1. **Customer Books Event**
-   - Selects event type with Coinley payment enabled
+   - Selects event type with Stablezact payment enabled
    - Fills booking details
 
 2. **Payment Created**
-   - Coinley generates payment intent
-   - Customer redirected to Coinley payment page
+   - Stablezact generates payment intent
+   - Customer redirected to Stablezact payment page
    - Displays QR code and wallet address
 
 3. **Customer Pays**
@@ -96,7 +101,7 @@ The integration will automatically use the wallet addresses you configured in St
 
 ### Webhook Events
 
-Coinley sends webhooks for:
+Stablezact sends webhooks for:
 
 - `payment.pending` - Transaction submitted to blockchain
 - `payment.confirmed` - Transaction confirmed (1+ blocks)
@@ -160,9 +165,9 @@ Refunds are sent back to the same wallet that made the original payment.
 ### Webhook Not Received
 
 1. Check webhook URL is publicly accessible
-2. Verify `COINLEY_WEBHOOK_SECRET` matches dashboard setting
+2. Verify `STABLEZACT_WEBHOOK_SECRET` matches dashboard setting
 3. Check firewall allows incoming requests
-4. Review webhook logs in Coinley dashboard
+4. Review webhook logs in Stablezact dashboard
 
 ### Payment Not Confirming
 
@@ -180,11 +185,11 @@ Refunds are sent back to the same wallet that made the original payment.
 
 ## Support
 
-- **Documentation**: [https://docs.coinley.io](https://docs.coinley.io)
-- **Support Email**: support@coinley.io
-- **Status Page**: [https://status.coinley.io](https://status.coinley.io)
+- **Documentation**: [https://docs.stablezact.com](https://docs.stablezact.com)
+- **Support Email**: support@stablezact.com
+- **Status Page**: [https://status.stablezact.com](https://status.stablezact.com)
 
 ## License
 
 This integration is part of Cal.com and follows the Cal.com license.
-Coinley service is provided by Coinley Labs, Inc.
+Stablezact service is provided by Stablezact Labs, Inc.

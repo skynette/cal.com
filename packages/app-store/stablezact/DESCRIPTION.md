@@ -1,6 +1,6 @@
-Accept cryptocurrency payments directly to your wallet with Coinley. The easiest way to get paid in crypto for your Cal.com bookings.
+Accept cryptocurrency payments directly to your wallet with Stablezact. The easiest way to get paid in crypto for your Cal.com bookings.
 
-## Why Coinley?
+## Why Stablezact?
 
 **Direct to Your Wallet** - Payments go straight to your wallet. No intermediaries, no waiting for payouts. You control your funds.
 

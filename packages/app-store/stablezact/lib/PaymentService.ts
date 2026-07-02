@@ -8,7 +8,7 @@ import axios, { type AxiosInstance } from "axios";
 import type { AppKeysSchema } from "../zod";
 import { appKeysSchema } from "../zod";
 
-interface CoinleyPaymentIntent {
+interface StablezactPaymentIntent {
   success: boolean;
   requestId: string;
   amount: number;
@@ -23,9 +23,9 @@ interface CoinleyPaymentIntent {
     paymentMethod: string;
     contractAddress?: string;
     merchantWallet?: string;
-    coinleyWallet?: string;
+    stablezactWallet?: string;
     merchantPercentage?: number;
-    coinleyPercentage?: number;
+    stablezactPercentage?: number;
     chainId?: number;
     tokenAddress?: string;
     tokenDecimals?: number;
@@ -33,7 +33,7 @@ interface CoinleyPaymentIntent {
   };
 }
 
-interface CoinleyPaymentDetails {
+interface StablezactPaymentDetails {
   paymentId: string;
   transactionHash?: string;
   status: "pending" | "confirmed" | "failed" | "refunded";
@@ -56,9 +56,9 @@ export class PaymentService implements IAbstractPaymentService {
       // Validate and parse credentials
       this.credentials = appKeysSchema.parse(credentials.key);
 
-      // Initialize Coinley API client
+      // Initialize Stablezact API client
       // API URL is configured via environment variable - not user-provided
-      const baseURL = process.env.COINLEY_API_URL || "https://talented-mercy-production.up.railway.app";
+      const baseURL = process.env.STABLEZACT_API_URL || "https://hub.stablezact.com";
       const apiBaseURL = baseURL.endsWith('/api') ? baseURL : `${baseURL}/api`;
 
       this.client = axios.create({
@@ -70,12 +70,12 @@ export class PaymentService implements IAbstractPaymentService {
         timeout: 30000,
       });
     } catch (error) {
-      console.error("[Coinley] Invalid credentials:", error);
+      console.error("[Stablezact] Invalid credentials:", error);
       this.credentials = null;
       // Don't throw - just set credentials to null so isSetupAlready() returns false
       // Throwing here breaks getConnectedApps() and causes the apps tab to hang
       this.client = axios.create({
-        baseURL: process.env.COINLEY_API_URL || "https://talented-mercy-production.up.railway.app/api",
+        baseURL: process.env.STABLEZACT_API_URL || "https://hub.stablezact.com/api",
         timeout: 30000,
       });
     }
@@ -97,17 +97,17 @@ export class PaymentService implements IAbstractPaymentService {
     bookingTitle?: string
   ): Promise<Payment> {
     if (!this.credentials) {
-      throw new Error("Coinley credentials not configured");
+      throw new Error("Stablezact credentials not configured");
     }
 
     const paymentUid = uuidv4();
 
     try {
-      console.log("[Coinley PaymentService] Creating payment");
+      console.log("[Stablezact PaymentService] Creating payment");
 
-      // Create payment intent with Coinley API
+      // Create payment intent with Stablezact API
       // Note: Merchant wallet addresses are retrieved by the backend using the API key/secret
-      const response = await this.client.post<CoinleyPaymentIntent>("/payments/create", {
+      const response = await this.client.post<StablezactPaymentIntent>("/payments/create", {
         amount: payment.amount / 100, // Convert cents to dollars
         currency: payment.currency || "USDT",
         network: "ethereum", // Default network, will be configurable per event type
@@ -139,7 +139,7 @@ export class PaymentService implements IAbstractPaymentService {
       const storedPayment = await prisma.payment.create({
         data: {
           uid: paymentUid,
-          appId: "coinley",
+          appId: "stablezact",
           bookingId,
           amount: payment.amount,
           fee,
@@ -157,13 +157,13 @@ export class PaymentService implements IAbstractPaymentService {
         },
       });
 
-      console.log("[Coinley] Payment created successfully");
+      console.log("[Stablezact] Payment created successfully");
 
       return storedPayment;
     } catch (error) {
       const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
-      console.error("[Coinley] Error creating payment:", axiosError.response?.data || axiosError.message);
-      throw new Error(`Failed to create Coinley payment: ${axiosError.response?.data?.message || axiosError.message}`);
+      console.error("[Stablezact] Error creating payment:", axiosError.response?.data || axiosError.message);
+      throw new Error(`Failed to create Stablezact payment: ${axiosError.response?.data?.message || axiosError.message}`);
     }
   }
 
@@ -200,19 +200,19 @@ export class PaymentService implements IAbstractPaymentService {
    */
   async chargeCard(payment: Payment, _bookingId?: Booking["id"]): Promise<Payment> {
     if (!this.credentials) {
-      throw new Error("Coinley credentials not configured");
+      throw new Error("Stablezact credentials not configured");
     }
 
     try {
-      // Use externalId which stores the Coinley payment ID from when payment was created
-      const coinleyPaymentId = payment.externalId;
-      if (!coinleyPaymentId) {
+      // Use externalId which stores the Stablezact payment ID from when payment was created
+      const stablezactPaymentId = payment.externalId;
+      if (!stablezactPaymentId) {
         throw new Error("Payment has no external ID - cannot capture");
       }
 
       // Capture the authorized payment
-      const response = await this.client.post<CoinleyPaymentDetails>(
-        `/payments/${coinleyPaymentId}/capture`
+      const response = await this.client.post<StablezactPaymentDetails>(
+        `/payments/${stablezactPaymentId}/capture`
       );
 
       const capturedPayment = response.data;
@@ -226,12 +226,12 @@ export class PaymentService implements IAbstractPaymentService {
         },
       });
 
-      console.log("[Coinley] Payment captured successfully");
+      console.log("[Stablezact] Payment captured successfully");
 
       return updatedPayment;
     } catch (error) {
       const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
-      console.error("[Coinley] Error capturing payment:", axiosError.response?.data || axiosError.message);
+      console.error("[Stablezact] Error capturing payment:", axiosError.response?.data || axiosError.message);
       throw new Error(`Failed to capture payment: ${axiosError.response?.data?.message || axiosError.message}`);
     }
   }
@@ -241,7 +241,7 @@ export class PaymentService implements IAbstractPaymentService {
    */
   async refund(paymentId: Payment["id"]): Promise<Payment> {
     if (!this.credentials) {
-      throw new Error("Coinley credentials not configured");
+      throw new Error("Stablezact credentials not configured");
     }
 
     try {
@@ -256,9 +256,9 @@ export class PaymentService implements IAbstractPaymentService {
         throw new Error("Payment already refunded");
       }
 
-      const paymentData = payment.data as unknown as CoinleyPaymentDetails;
+      const paymentData = payment.data as unknown as StablezactPaymentDetails;
 
-      // Create refund via Coinley API
+      // Create refund via Stablezact API
       await this.client.post(`/payments/${paymentData.paymentId}/refund`, {
         amount: payment.amount / 100, // Convert cents to dollars
         reason: "Booking cancelled by merchant",
@@ -270,12 +270,12 @@ export class PaymentService implements IAbstractPaymentService {
         data: { refunded: true },
       });
 
-      console.log("[Coinley] Payment refunded successfully");
+      console.log("[Stablezact] Payment refunded successfully");
 
       return refundedPayment;
     } catch (error) {
       const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
-      console.error("[Coinley] Error refunding payment:", axiosError.response?.data || axiosError.message);
+      console.error("[Stablezact] Error refunding payment:", axiosError.response?.data || axiosError.message);
       throw new Error(`Failed to refund payment: ${axiosError.response?.data?.message || axiosError.message}`);
     }
   }
@@ -290,9 +290,9 @@ export class PaymentService implements IAbstractPaymentService {
 
     try {
       const payment = await this.getPayment(paymentId);
-      const paymentData = payment.data as unknown as CoinleyPaymentDetails;
+      const paymentData = payment.data as unknown as StablezactPaymentDetails;
 
-      // Cancel payment with Coinley API
+      // Cancel payment with Stablezact API
       await this.client.post(`/payments/${paymentData.paymentId}/cancel`);
 
       // Delete from database
@@ -300,12 +300,12 @@ export class PaymentService implements IAbstractPaymentService {
         where: { id: payment.id },
       });
 
-      console.log("[Coinley] Payment deleted successfully");
+      console.log("[Stablezact] Payment deleted successfully");
 
       return true;
     } catch (error) {
       const axiosError = error as { response?: { data?: unknown }; message?: string };
-      console.error("[Coinley] Error deleting payment:", axiosError.response?.data || axiosError.message);
+      console.error("[Stablezact] Error deleting payment:", axiosError.response?.data || axiosError.message);
       return false;
     }
   }
@@ -354,7 +354,7 @@ export class PaymentService implements IAbstractPaymentService {
     _paymentData: Payment,
     _eventTypeMetadata?: unknown
   ): Promise<void> {
-    console.log("[Coinley] After payment hook executed");
+    console.log("[Stablezact] After payment hook executed");
 
     // Additional actions can be added here:
     // - Send custom confirmation emails
@@ -371,19 +371,19 @@ export class PaymentService implements IAbstractPaymentService {
   }
 
   /**
-   * Get payment status from Coinley API
+   * Get payment status from Stablezact API
    */
-  async getPaymentStatus(externalId: string): Promise<CoinleyPaymentDetails> {
+  async getPaymentStatus(externalId: string): Promise<StablezactPaymentDetails> {
     if (!this.credentials) {
-      throw new Error("Coinley credentials not configured");
+      throw new Error("Stablezact credentials not configured");
     }
 
     try {
-      const response = await this.client.get<CoinleyPaymentDetails>(`/payments/${externalId}`);
+      const response = await this.client.get<StablezactPaymentDetails>(`/payments/${externalId}`);
       return response.data;
     } catch (error) {
       const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
-      console.error("[Coinley] Error getting payment status:", axiosError.response?.data || axiosError.message);
+      console.error("[Stablezact] Error getting payment status:", axiosError.response?.data || axiosError.message);
       throw new Error(`Failed to get payment status: ${axiosError.response?.data?.message || axiosError.message}`);
     }
   }

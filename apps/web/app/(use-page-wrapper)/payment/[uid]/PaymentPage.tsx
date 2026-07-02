@@ -60,10 +60,10 @@ const BtcpayPaymentComponent = dynamic(
   }
 );
 
-const CoinleyPaymentComponent = dynamic(
+const StablezactPaymentComponent = dynamic(
   () =>
-    import("@calcom/web/components/apps/coinley/CoinleyPaymentComponent").then(
-      (m) => m.CoinleyPaymentComponent
+    import("@calcom/web/components/apps/stablezact/StablezactPaymentComponent").then(
+      (m) => m.StablezactPaymentComponent
     ),
   {
     ssr: false,
@@ -181,8 +181,8 @@ const PaymentPage: FC<PaymentPageProps> = (props) => {
                   {props.payment.appId === "btcpayserver" && !props.payment.success && (
                     <BtcpayPaymentComponent payment={props.payment} paymentPageProps={props} />
                   )}
-                  {props.payment.appId === "coinley" && !props.payment.success && (
-                    <CoinleyPaymentComponent payment={props.payment} paymentPageProps={props} />
+                  {props.payment.appId === "stablezact" && !props.payment.success && (
+                    <StablezactPaymentComponent payment={props.payment} paymentPageProps={props} />
                   )}
                   {props.payment.refunded && (
                     <div className="mt-4 text-center text-default dark:text-gray-300">{t("refunded")}</div>

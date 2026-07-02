@@ -256,16 +256,7 @@ const nextConfig = (phase: string): NextConfig => {
     images: {
       unoptimized: true,
     },
-    turbopack: {
-      // Force the Coinley app to use Cal.com's React instead of bundling its own,
-      // preventing "Cannot read properties of undefined (reading 'ReactCurrentOwner')"
-      resolveAlias: {
-        react: require.resolve("react"),
-        "react-dom": require.resolve("react-dom"),
-        "react/jsx-runtime": require.resolve("react/jsx-runtime"),
-        "react/jsx-dev-runtime": require.resolve("react/jsx-dev-runtime"),
-      },
-    },
+    turbopack: {},
     async rewrites() {
       const { orgSlug } = nextJsOrgRewriteConfig;
       const beforeFiles = [

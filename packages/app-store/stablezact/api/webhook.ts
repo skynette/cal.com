@@ -12,7 +12,7 @@ export const config = {
 };
 
 /**
- * Verify webhook signature from Coinley
+ * Verify webhook signature from Stablezact
  */
 function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
   try {
@@ -22,13 +22,13 @@ function verifyWebhookSignature(payload: string, signature: string, secret: stri
 
     return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
   } catch (error) {
-    console.error("[Coinley Webhook] Signature verification error:", error);
+    console.error("[Stablezact Webhook] Signature verification error:", error);
     return false;
   }
 }
 
 /**
- * Webhook handler for Coinley payment events
+ * Webhook handler for Stablezact payment events
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -41,23 +41,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const payload = buf.toString("utf8");
 
     // Verify signature
-    const signature = req.headers["x-coinley-signature"] as string;
-    const webhookSecret = process.env.COINLEY_WEBHOOK_SECRET;
+    const signature = req.headers["x-stablezact-signature"] as string;
+    const webhookSecret = process.env.STABLEZACT_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      console.error("[Coinley Webhook] Webhook secret not configured");
+      console.error("[Stablezact Webhook] Webhook secret not configured");
       return res.status(500).json({ error: "Webhook secret not configured" });
     }
 
     if (!signature || !verifyWebhookSignature(payload, signature, webhookSecret)) {
-      console.error("[Coinley Webhook] Invalid signature");
+      console.error("[Stablezact Webhook] Invalid signature");
       return res.status(401).json({ error: "Invalid signature" });
     }
 
     // Parse event
     const event = JSON.parse(payload);
 
-    console.log("[Coinley Webhook] Received event:", event.type, event.data?.paymentId);
+    console.log("[Stablezact Webhook] Received event:", event.type, event.data?.paymentId);
 
     // Route to appropriate handler
     switch (event.type) {
@@ -78,12 +78,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         break;
 
       default:
-        console.log("[Coinley Webhook] Unhandled event type:", event.type);
+        console.log("[Stablezact Webhook] Unhandled event type:", event.type);
     }
 
     return res.status(200).json({ received: true });
   } catch (error) {
-    console.error("[Coinley Webhook] Error processing webhook:", error);
+    console.error("[Stablezact Webhook] Error processing webhook:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -105,7 +105,7 @@ async function handlePaymentPending(event: { data: { paymentId: string; transact
   });
 
   if (!payment) {
-    console.error("[Coinley Webhook] Payment not found:", paymentId);
+    console.error("[Stablezact Webhook] Payment not found:", paymentId);
     return;
   }
 
@@ -123,7 +123,7 @@ async function handlePaymentPending(event: { data: { paymentId: string; transact
     },
   });
 
-  console.log("[Coinley Webhook] Payment pending:", {
+  console.log("[Stablezact Webhook] Payment pending:", {
     paymentId,
     transactionHash,
     bookingId: payment.bookingId,
@@ -167,7 +167,7 @@ async function handlePaymentConfirmed(event: { data: { paymentId: string; transa
   }
 
   if (!payment) {
-    console.error("[Coinley Webhook] Payment not found:", paymentId, metadata);
+    console.error("[Stablezact Webhook] Payment not found:", paymentId, metadata);
     return;
   }
 
@@ -197,7 +197,7 @@ async function handlePaymentConfirmed(event: { data: { paymentId: string; transa
     },
   });
 
-  console.log("[Coinley Webhook] Payment confirmed:", {
+  console.log("[Stablezact Webhook] Payment confirmed:", {
     paymentId,
     transactionHash,
     bookingId: payment.bookingId,
@@ -224,7 +224,7 @@ async function handlePaymentFailed(event: { data: { paymentId: string; reason?: 
   });
 
   if (!payment) {
-    console.error("[Coinley Webhook] Payment not found:", paymentId);
+    console.error("[Stablezact Webhook] Payment not found:", paymentId);
     return;
   }
 
@@ -250,7 +250,7 @@ async function handlePaymentFailed(event: { data: { paymentId: string; reason?: 
     },
   });
 
-  console.log("[Coinley Webhook] Payment failed:", {
+  console.log("[Stablezact Webhook] Payment failed:", {
     paymentId,
     reason,
     bookingId: payment.bookingId,
@@ -274,7 +274,7 @@ async function handlePaymentRefunded(event: { data: { paymentId: string; refundT
   });
 
   if (!payment) {
-    console.error("[Coinley Webhook] Payment not found:", paymentId);
+    console.error("[Stablezact Webhook] Payment not found:", paymentId);
     return;
   }
 
@@ -291,7 +291,7 @@ async function handlePaymentRefunded(event: { data: { paymentId: string; refundT
     },
   });
 
-  console.log("[Coinley Webhook] Payment refunded:", {
+  console.log("[Stablezact Webhook] Payment refunded:", {
     paymentId,
     refundTransactionHash,
   });

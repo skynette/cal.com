@@ -17,7 +17,6 @@ import caretta_config_json from "./caretta/config.json";
 import chatbase_config_json from "./chatbase/config.json";
 import clic_config_json from "./clic/config.json";
 import closecom_config_json from "./closecom/config.json";
-import coinley_config_json from "./coinley/config.json";
 import cron_config_json from "./cron/config.json";
 import { metadata as dailyvideo__metadata_ts } from "./dailyvideo/_metadata";
 import databuddy_config_json from "./databuddy/config.json";
@@ -87,6 +86,7 @@ import shimmervideo_config_json from "./shimmervideo/config.json";
 import signal_config_json from "./signal/config.json";
 import sirius_video_config_json from "./sirius_video/config.json";
 import skype_config_json from "./skype/config.json";
+import stablezact_config_json from "./stablezact/config.json";
 import { metadata as stripepayment__metadata_ts } from "./stripepayment/_metadata";
 import sylapsvideo_config_json from "./sylapsvideo/config.json";
 import synthflow_config_json from "./synthflow/config.json";
@@ -130,7 +130,6 @@ export const appStoreMetadata = {
   chatbase: chatbase_config_json,
   clic: clic_config_json,
   closecom: closecom_config_json,
-  coinley: coinley_config_json,
   cron: cron_config_json,
   dailyvideo: dailyvideo__metadata_ts,
   databuddy: databuddy_config_json,
@@ -200,6 +199,7 @@ export const appStoreMetadata = {
   signal: signal_config_json,
   sirius_video: sirius_video_config_json,
   skype: skype_config_json,
+  stablezact: stablezact_config_json,
   stripepayment: stripepayment__metadata_ts,
   sylapsvideo: sylapsvideo_config_json,
   synthflow: synthflow_config_json,

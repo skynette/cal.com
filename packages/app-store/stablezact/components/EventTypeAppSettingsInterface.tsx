@@ -61,7 +61,7 @@ const EventTypeAppSettingsInterface: EventTypeAppSettingsComponent = ({
           required
           className="block w-full rounded-sm pl-2 text-sm"
           placeholder={t("price")}
-          data-testid="coinley-price-input"
+          data-testid="stablezact-price-input"
           onChange={(e) => {
             const value = Number(e.target.value);
             // Store price in cents for consistency with other payment apps
@@ -71,7 +71,7 @@ const EventTypeAppSettingsInterface: EventTypeAppSettingsComponent = ({
         />
       </div>
       <p className="text-default mt-1 text-xs text-gray-500">
-        {t("coinley_currency_selection_info")}
+        {t("stablezact_currency_selection_info")}
       </p>
 
       <div className="mt-4 w-60">
@@ -79,7 +79,7 @@ const EventTypeAppSettingsInterface: EventTypeAppSettingsComponent = ({
           {t("payment_option")}
         </label>
         <Select<Option>
-          data-testid="coinley-payment-option-select"
+          data-testid="stablezact-payment-option-select"
           defaultValue={
             paymentOptionSelectValue
               ? { ...paymentOptionSelectValue, label: t(paymentOptionSelectValue.label) }
@@ -103,17 +103,17 @@ const EventTypeAppSettingsInterface: EventTypeAppSettingsComponent = ({
         <Alert
           className="mt-2"
           severity="info"
-          title={t("coinley_supported_cryptocurrencies")}
+          title={t("stablezact_supported_cryptocurrencies")}
           message={
             <div className="space-y-2 text-sm">
               <p>
-                <strong>{t("coinley_stablecoins")}:</strong> USDT, USDC
+                <strong>{t("stablezact_stablecoins")}:</strong> USDT, USDC
               </p>
               <p>
-                <strong>{t("coinley_networks")}:</strong> Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Celo, Base
+                <strong>{t("stablezact_networks")}:</strong> Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Celo, Base
               </p>
               <p className="mt-2 text-xs text-gray-600">
-                {t("coinley_payment_info")}
+                {t("stablezact_payment_info")}
               </p>
             </div>
           }

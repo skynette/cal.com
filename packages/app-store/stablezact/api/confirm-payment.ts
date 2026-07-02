@@ -7,8 +7,8 @@ import type { Prisma } from "@calcom/prisma/client";
 import { appKeysSchema } from "../zod";
 
 /**
- * Confirm payment from frontend after Coinley SDK onSuccess callback
- * IMPORTANT: Verifies payment status with Coinley API before marking booking as paid
+ * Confirm payment from frontend after Stablezact SDK onSuccess callback
+ * IMPORTANT: Verifies payment status with Stablezact API before marking booking as paid
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const payment = await prisma.payment.findFirst({
       where: {
         bookingId: parseInt(bookingId),
-        appId: "coinley",
+        appId: "stablezact",
       },
       select: {
         id: true,
@@ -49,10 +49,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Booking not found" });
     }
 
-    // Get merchant credentials to verify payment with Coinley API
+    // Get merchant credentials to verify payment with Stablezact API
     const credential = await prisma.credential.findFirst({
       where: {
-        appId: "coinley",
+        appId: "stablezact",
         userId: payment.booking.userId,
       },
       select: {
@@ -67,9 +67,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Validate credentials format (not used for public endpoint, but validates merchant setup)
     const _credentials = appKeysSchema.parse(credential.key);
 
-    // Verify payment status with Coinley API
+    // Verify payment status with Stablezact API
     // API URL is configured via environment variable
-    const baseURL = process.env.COINLEY_API_URL || "https://talented-mercy-production.up.railway.app";
+    const baseURL = process.env.STABLEZACT_API_URL || "https://hub.stablezact.com";
     const apiUrl = baseURL.endsWith("/api") ? baseURL : `${baseURL}/api`;
 
     try {
@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const paymentData = statusResponse.data?.payment;
       const paymentStatus = paymentData?.status;
 
-      // Only mark as paid if Coinley confirms payment is successful
+      // Only mark as paid if Stablezact confirms payment is successful
       if (paymentStatus !== "confirmed" && paymentStatus !== "completed") {
         return res.status(400).json({
           error: "Payment not confirmed",
@@ -89,12 +89,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      // SECURITY: Verify the payment was created for this specific booking
-      // The metadata.bookingId was set when the payment was created
+      // SECURITY: Verify the payment was created for this specific booking.
+      // PaymentService always sets metadata.bookingId at creation, so require it
+      // and compare unconditionally — a missing bookingId must be rejected, not
+      // skipped, or a confirmed paymentId from another context could confirm any booking.
       const paymentMetadata = paymentData?.metadata;
       const metadataBookingId = paymentMetadata?.bookingId?.toString();
 
-      if (metadataBookingId && metadataBookingId !== bookingId.toString()) {
+      if (!metadataBookingId || metadataBookingId !== bookingId.toString()) {
         return res.status(403).json({ error: "Payment does not belong to this booking" });
       }
     } catch {
