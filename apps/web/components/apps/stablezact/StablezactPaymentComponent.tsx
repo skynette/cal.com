@@ -323,7 +323,7 @@ export const StablezactPaymentComponent = (props: IStablezactPaymentComponentPro
       const link = document.createElement("link");
       link.id = "stablezact-sdk-styles";
       link.rel = "stylesheet";
-      link.href = "https://cdn.jsdelivr.net/npm/coinley-pay@latest/dist/style.css";
+      link.href = "https://unpkg.com/stablezact-pay@0.66.0/dist/style.css";
       document.head.appendChild(link);
     }
 
@@ -337,10 +337,13 @@ export const StablezactPaymentComponent = (props: IStablezactPaymentComponentPro
       document.head.appendChild(overlayFix);
     }
 
-    // Load the Stablezact CDN script
+    // Load the Stablezact CDN script.
+    // Use the self-contained vanilla build (exposes the global `CoinleyVanilla`).
+    // The package's index.umd.js is the React build and externalizes React, so it
+    // cannot be used with the `new CoinleyVanilla()` integration below.
     const script = document.createElement("script");
     script.id = "stablezact-sdk-script";
-    script.src = "https://cdn.jsdelivr.net/npm/coinley-pay@latest/dist/coinley-vanilla.min.js";
+    script.src = "https://unpkg.com/stablezact-pay@0.66.0/dist/coinley-vanilla.min.js";
     script.async = true;
     script.onload = () => {
       console.log("[Stablezact] SDK loaded successfully");
