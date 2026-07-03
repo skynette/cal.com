@@ -14,7 +14,7 @@ export const metadata = {
   variant: "payment",
   extendsFeature: "EventType",
   url: "https://stablezact.com",
-  email: "support@stablezact.com",
+  email: "info@stablezact.com",
   dirName: "stablezact",
   isOAuth: false,
 } as AppMeta;

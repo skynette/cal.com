@@ -186,7 +186,7 @@ Refunds are sent back to the same wallet that made the original payment.
 ## Support
 
 - **Documentation**: [https://docs.stablezact.com](https://docs.stablezact.com)
-- **Support Email**: support@stablezact.com
+- **Support Email**: info@stablezact.com
 - **Status Page**: [https://status.stablezact.com](https://status.stablezact.com)
 
 ## License

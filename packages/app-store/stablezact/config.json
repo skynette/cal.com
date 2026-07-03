@@ -7,7 +7,7 @@
   "variant": "payment",
   "categories": ["payment"],
   "publisher": "Stablezact Labs",
-  "email": "support@stablezact.com",
+  "email": "info@stablezact.com",
   "description": "Accept cryptocurrency payments directly to your wallet. Support for USDT, USDC, and more across multiple blockchains.",
   "extendsFeature": "EventType",
   "isTemplate": false,
