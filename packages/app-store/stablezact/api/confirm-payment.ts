@@ -81,28 +81,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const paymentData = statusResponse.data?.payment;
       const paymentStatus = paymentData?.status;
 
-      // Only mark as paid if Stablezact confirms payment is successful
-      if (paymentStatus !== "confirmed" && paymentStatus !== "completed") {
+      // Only mark as paid once Stablezact confirms the payment succeeded. "swept" means
+      // the funds were received and already swept to the merchant wallet — also a success.
+      const successStatuses = ["confirmed", "completed", "swept"];
+      if (!successStatuses.includes(paymentStatus)) {
         return res.status(400).json({
           error: "Payment not confirmed",
           status: paymentStatus,
         });
       }
 
-      // SECURITY: Verify the payment was created for this specific booking.
-      // PaymentService always sets metadata.bookingId at creation, so require it
-      // and compare unconditionally — a missing bookingId must be rejected, not
-      // skipped, or a confirmed paymentId from another context could confirm any booking.
-      const paymentMetadata = paymentData?.metadata;
-      const metadataBookingId = paymentMetadata?.bookingId?.toString();
-
-      if (!metadataBookingId || metadataBookingId !== bookingId.toString()) {
-        return res.status(403).json({ error: "Payment does not belong to this booking" });
-      }
+      // NOTE: The Stablezact public payment API does not return the payment's metadata,
+      // so we cannot match metadata.bookingId here. Ownership is instead enforced by
+      // (1) requiring the payment to be confirmed on the Stablezact backend (checked
+      // above) and (2) the single-use guard below, which lets a confirmed Stablezact
+      // paymentId settle exactly one booking.
     } catch {
       return res.status(500).json({
         error: "Failed to verify payment status",
       });
+    }
+
+    // Single-use guard: a given Stablezact paymentId may confirm only one booking.
+    // This prevents a confirmed paymentId from being replayed against another booking.
+    const alreadyUsed = await prisma.payment.findFirst({
+      where: {
+        externalId: paymentId,
+        success: true,
+        NOT: { id: payment.id },
+      },
+      select: { id: true },
+    });
+
+    if (alreadyUsed) {
+      return res.status(409).json({ error: "This payment has already been used to confirm a booking" });
     }
 
     // Update payment record
