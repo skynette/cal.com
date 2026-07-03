@@ -327,6 +327,16 @@ export const StablezactPaymentComponent = (props: IStablezactPaymentComponentPro
       document.head.appendChild(link);
     }
 
+    // The SDK leaves an empty, full-viewport #coinley-payment-container at a high z-index
+    // that swallows every click, making the payment modal uninteractive. Let clicks fall
+    // through to the modal beneath it while the container is empty.
+    if (!document.getElementById("stablezact-sdk-overlay-fix")) {
+      const overlayFix = document.createElement("style");
+      overlayFix.id = "stablezact-sdk-overlay-fix";
+      overlayFix.textContent = "#coinley-payment-container:empty{pointer-events:none !important;}";
+      document.head.appendChild(overlayFix);
+    }
+
     // Load the Stablezact CDN script
     const script = document.createElement("script");
     script.id = "stablezact-sdk-script";

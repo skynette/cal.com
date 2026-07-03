@@ -82,7 +82,16 @@ const PaymentPage: FC<PaymentPageProps> = (props) => {
     let embedIframeWidth = 0;
     const _timezone = localStorage.getItem("timeOption.preferredTimeZone") || CURRENT_TIMEZONE;
     setTimezone(_timezone);
-    setDate(date.tz(_timezone));
+    // dayjs .tz() can throw "Invalid time value" on some runtime/dayjs combinations;
+    // fall back to the un-zoned date rather than crashing the whole payment page.
+    try {
+      const zonedDate = date.tz(_timezone);
+      if (zonedDate.isValid()) {
+        setDate(zonedDate);
+      }
+    } catch {
+      // keep the existing (UTC) date
+    }
     setIs24h(!!getIs24hClockFromLocalStorage());
     if (isEmbed) {
       requestAnimationFrame(function fixStripeIframe() {
