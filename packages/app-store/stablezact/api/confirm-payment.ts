@@ -91,25 +91,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
-      // The Stablezact public API does not return the payment's metadata, so we cannot
-      // match metadata.bookingId directly. As a partial ownership check, require the
-      // confirmed payment's amount to equal the amount THIS booking's payment was created
-      // for (stored on our payment record). We deliberately do NOT match the merchant
-      // wallet: the customer chooses the network at pay time, and a merchant may configure
-      // a different receiving wallet per network, so a strict wallet match would reject
-      // legitimate cross-network payments.
-      //
-      // SECURITY LIMITATION: amount + single-use + confirmed-status is NOT a full ownership
-      // proof — a confirmed, unused payment of the same amount could be replayed against a
-      // different booking. Closing this fully requires the Stablezact backend to expose the
-      // payment's bookingId metadata (or to reconcile the deposit payment back to the
-      // payment we created). Tracked as a backend follow-up.
+      // OWNERSHIP CHECK: the payment's metadata.bookingId (set by our PaymentService at
+      // creation and returned by the public status endpoint) must match this booking.
+      // Require it and compare unconditionally — a missing bookingId is rejected, not
+      // skipped, so a confirmed paymentId from another context cannot confirm this booking.
+      const metadataBookingId = paymentData?.metadata?.bookingId?.toString();
+      if (!metadataBookingId || metadataBookingId !== bookingId.toString()) {
+        return res.status(403).json({ error: "Payment does not belong to this booking" });
+      }
+
+      // Defense in depth: the confirmed amount must also equal what this booking's payment
+      // was created for. Lenient when the stored amount is unavailable so it never rejects
+      // an otherwise-valid, ownership-verified payment.
       const storedData = (payment.data ?? {}) as Record<string, unknown>;
       const expectedAmount = Number(storedData.amount);
       const actualAmount = Number(paymentData?.amount);
       if (
-        !Number.isFinite(expectedAmount) ||
-        !Number.isFinite(actualAmount) ||
+        Number.isFinite(expectedAmount) &&
+        Number.isFinite(actualAmount) &&
         Math.abs(expectedAmount - actualAmount) > 1e-9
       ) {
         return res.status(403).json({ error: "Payment amount does not match this booking" });
