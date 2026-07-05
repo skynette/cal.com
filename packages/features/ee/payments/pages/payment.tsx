@@ -24,7 +24,14 @@ export const getServerSideProps = async (context: GetServerSidePropsContext) => 
     where: {
       uid,
     },
-    select: paymentDataSelect,
+    // paymentDataSelect identifies the payment by uid; the payment page's client
+    // components key off the numeric payment id and the booking paid flag, so
+    // select those here as well.
+    select: {
+      ...paymentDataSelect,
+      id: true,
+      booking: { select: { ...paymentDataSelect.booking.select, paid: true } },
+    },
   });
 
   if (!rawPayment) return { notFound: true } as const;

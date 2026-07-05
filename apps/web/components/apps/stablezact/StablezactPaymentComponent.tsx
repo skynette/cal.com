@@ -4,11 +4,51 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import z from "zod";
 
 import { useBookingSuccessRedirect } from "@calcom/features/bookings/lib/bookingSuccessRedirect";
-import type { PaymentPageProps } from "@calcom/features/ee/payments/pages/payment";
 import { useCompatSearchParams } from "@calcom/lib/hooks/useCompatSearchParams";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { showToast } from "@calcom/ui/components/toast";
 
+
+// Local prop shape (same convention as the other payment app client components,
+// e.g. btcpayserver) so this "use client" component never imports the server-only
+// getServerSideProps module. `profile` is included because we read `profile.name`.
+type PaymentPageProps = {
+  payment: {
+    id: number;
+    success: boolean;
+    refunded: boolean;
+    amount: number;
+    currency: string;
+    paymentOption: string | null;
+    data: Record<string, unknown>;
+  };
+  clientSecret?: string | null;
+  booking: {
+    id: number;
+    uid: string;
+    title: string;
+    startTime: string;
+    endTime: string;
+    status: string;
+    paid: boolean;
+    description?: string | null;
+    location?: string | null;
+    attendees?: Array<{ name: string; email: string; timeZone: string }>;
+    user?: { name: string | null; timeZone: string } | null;
+  };
+  eventType: {
+    id: number;
+    title: string;
+    length: number;
+    price: number;
+    currency: string;
+    metadata: Record<string, unknown> | null;
+    successRedirectUrl?: string | null;
+    forwardParamsSuccessRedirect?: boolean | null;
+    recurringEvent?: unknown;
+  };
+  profile: { name?: string | null; theme?: string | null; hideBranding?: boolean };
+};
 
 interface IStablezactPaymentComponentProps {
   payment: {
@@ -190,13 +230,26 @@ export const StablezactPaymentComponent = (props: IStablezactPaymentComponentPro
         location: t("web_conferencing_details_to_follow"),
       };
 
-      // Redirect to success page
+      // Redirect to success page. Shape the booking to SuccessRedirectBookingType
+      // the same way the other payment apps (e.g. btcpayserver) do: Date-typed
+      // times and a non-null user carrying email.
       setTimeout(() => {
         bookingSuccessRedirect({
-          successRedirectUrl: paymentPageProps.eventType.successRedirectUrl,
+          successRedirectUrl: paymentPageProps.eventType.successRedirectUrl ?? null,
           query: params,
-          booking: paymentPageProps.booking,
-          forwardParamsSuccessRedirect: paymentPageProps.eventType.forwardParamsSuccessRedirect,
+          booking: {
+            ...paymentPageProps.booking,
+            startTime: new Date(paymentPageProps.booking.startTime),
+            endTime: new Date(paymentPageProps.booking.endTime),
+            user: paymentPageProps.booking.user
+              ? { ...paymentPageProps.booking.user, email: null }
+              : { email: null, name: null },
+            responses: undefined,
+            attendees: undefined,
+            location: paymentPageProps.booking.location ?? null,
+            description: paymentPageProps.booking.description ?? null,
+          },
+          forwardParamsSuccessRedirect: paymentPageProps.eventType.forwardParamsSuccessRedirect ?? null,
         });
       }, 1000);
 
