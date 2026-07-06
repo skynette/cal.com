@@ -1,26 +1,18 @@
+import { FeatureProvider } from "@calcom/features/flags/context/provider";
+import { useFlags } from "@calcom/web/modules/feature-flags/hooks/useFlags";
+import type { PageWrapperProps } from "@components/PageWrapperAppDir";
+import useIsBookingPage from "@lib/hooks/useIsBookingPage";
+import useIsThemeSupported from "@lib/hooks/useIsThemeSupported";
+import { useNuqsParams } from "@lib/hooks/useNuqsParams";
+import type { WithLocaleProps } from "@lib/withLocale";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
-import type { Session } from "next-auth";
-import { useSession } from "next-auth/react";
-import { EventCollectionProvider } from "next-collect/client";
-import { ThemeProvider } from "next-themes";
 import type { AppProps as NextAppProps } from "next/app";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { Session } from "next-auth";
+import { useSession } from "next-auth/react";
+import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-
-import DynamicPostHogProvider from "@calcom/features/ee/event-tracking/lib/posthog/providerDynamic";
-import { OrgBrandingProvider } from "@calcom/features/ee/organizations/context/provider";
-import DynamicHelpscoutProvider from "@calcom/features/ee/support/lib/helpscout/providerDynamic";
-import DynamicIntercomProvider from "@calcom/features/ee/support/lib/intercom/providerDynamic";
-import { FeatureProvider } from "@calcom/features/flags/context/provider";
-import { useFlags } from "@calcom/features/flags/hooks";
-
-import useIsBookingPage from "@lib/hooks/useIsBookingPage";
-import useIsThemeSupported from "@lib/hooks/useIsThemeSupported";
-import type { WithLocaleProps } from "@lib/withLocale";
-
-import type { PageWrapperProps } from "@components/PageWrapperAppDir";
-
 import { getThemeProviderProps } from "./getThemeProviderProps";
 
 // Workaround for https://github.com/vercel/next.js/issues/8592
@@ -47,7 +39,7 @@ export type AppProps = Omit<
 const getEmbedNamespace = (searchParams: ReadonlyURLSearchParams) => {
   // Mostly embed query param should be available on server. Use that there.
   // Use the most reliable detection on client
-  return typeof window !== "undefined" ? window.getEmbedNamespace() : searchParams.get("embed") ?? null;
+  return typeof window !== "undefined" ? window.getEmbedNamespace() : (searchParams.get("embed") ?? null);
 };
 
 type CalcomThemeProps = Readonly<{
@@ -78,6 +70,7 @@ const CalcomThemeProvider = (props: CalcomThemeProps) => {
       {/* Embed Mode can be detected reliably only on client side here as there can be static generated pages as well which can't determine if it's embed mode at backend */}
       {/* color-scheme makes background:transparent not work in iframe which is required by embed. */}
       {typeof window !== "undefined" && !isEmbedMode && (
+        //eslint-disable-next-line react/no-unknown-property
         <style jsx global>
           {`
             .dark {
@@ -96,44 +89,31 @@ function FeatureFlagsProvider({ children }: { children: React.ReactNode }) {
   return <FeatureProvider value={flags}>{children}</FeatureProvider>;
 }
 
-function useOrgBrandingValues() {
-  const session = useSession();
-  return session?.data?.user.org;
-}
-
 function OrgBrandProvider({ children }: { children: React.ReactNode }) {
-  const orgBrand = useOrgBrandingValues();
-  return <OrgBrandingProvider value={{ orgBrand }}>{children}</OrgBrandingProvider>;
+  return <>{children}</>;
 }
 
 const AppProviders = (props: PageWrapperProps) => {
   // No need to have intercom on public pages - Good for Page Performance
   const isBookingPage = useIsBookingPage();
   const isThemeSupported = useIsThemeSupported();
+  const nuqsParams = useNuqsParams();
 
   const RemainingProviders = (
     <>
-      <EventCollectionProvider options={{ apiPath: "/api/collect-events" }}>
-        <TooltipProvider>
-          {/* color-scheme makes background:transparent not work which is required by embed. We need to ensure next-theme adds color-scheme to `body` instead of `html`(https://github.com/pacocoursey/next-themes/blob/main/src/index.tsx#L74). Once that's done we can enable color-scheme support */}
-          <CalcomThemeProvider
-            nonce={props.nonce}
-            isThemeSupported={isThemeSupported}
-            isBookingPage={props.isBookingPage || isBookingPage}>
-            <NuqsAdapter>
-              <FeatureFlagsProvider>
-                {props.isBookingPage || isBookingPage ? (
-                  <OrgBrandProvider>{props.children}</OrgBrandProvider>
-                ) : (
-                  <DynamicIntercomProvider>
-                    <OrgBrandProvider>{props.children}</OrgBrandProvider>
-                  </DynamicIntercomProvider>
-                )}
-              </FeatureFlagsProvider>
-            </NuqsAdapter>
-          </CalcomThemeProvider>
-        </TooltipProvider>
-      </EventCollectionProvider>
+      <TooltipProvider>
+        {/* color-scheme makes background:transparent not work which is required by embed. We need to ensure next-theme adds color-scheme to `body` instead of `html`(https://github.com/pacocoursey/next-themes/blob/main/src/index.tsx#L74). Once that's done we can enable color-scheme support */}
+        <CalcomThemeProvider
+          nonce={props.nonce}
+          isThemeSupported={isThemeSupported}
+          isBookingPage={props.isBookingPage || isBookingPage}>
+          <NuqsAdapter {...nuqsParams}>
+            <FeatureFlagsProvider>
+              <OrgBrandProvider>{props.children}</OrgBrandProvider>
+            </FeatureFlagsProvider>
+          </NuqsAdapter>
+        </CalcomThemeProvider>
+      </TooltipProvider>
     </>
   );
 
@@ -141,13 +121,7 @@ const AppProviders = (props: PageWrapperProps) => {
     return RemainingProviders;
   }
 
-  return (
-    <>
-      <DynamicHelpscoutProvider>
-        <DynamicPostHogProvider>{RemainingProviders}</DynamicPostHogProvider>
-      </DynamicHelpscoutProvider>
-    </>
-  );
+  return RemainingProviders;
 };
 
 export default AppProviders;

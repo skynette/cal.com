@@ -1,4 +1,4 @@
-import type { Prisma } from "@calcom/prisma/client";
+import type { Prisma } from "../client";
 
 export const baseEventTypeSelect = {
   id: true,
@@ -45,15 +45,6 @@ export const bookEventTypeSelect = {
   userId: true,
   seatsPerTimeSlot: true,
   bookingFields: true,
-  workflows: {
-    include: {
-      workflow: {
-        include: {
-          steps: true,
-        },
-      },
-    },
-  },
   users: {
     select: {
       id: true,

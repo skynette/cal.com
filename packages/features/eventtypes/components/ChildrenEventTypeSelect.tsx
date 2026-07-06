@@ -1,37 +1,18 @@
-import { useAutoAnimate } from "@formkit/auto-animate/react";
-import type { Props } from "react-select";
-
-import { getBookerBaseUrlSync } from "@calcom/features/ee/organizations/lib/getBookerBaseUrlSync";
+import type { ChildrenEventType } from "@calcom/features/eventtypes/lib/childrenEventType";
 import type { SelectClassNames } from "@calcom/features/eventtypes/lib/types";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { MembershipRole } from "@calcom/prisma/enums";
-import type { UserProfile } from "@calcom/types/UserProfile";
 import classNames from "@calcom/ui/classNames";
 import { Avatar } from "@calcom/ui/components/avatar";
 import { Badge } from "@calcom/ui/components/badge";
 import { Button } from "@calcom/ui/components/button";
 import { ButtonGroup } from "@calcom/ui/components/buttonGroup";
-import { Select } from "@calcom/ui/components/form";
-import { Switch } from "@calcom/ui/components/form";
+import { Select, Switch } from "@calcom/ui/components/form";
 import { Tooltip } from "@calcom/ui/components/tooltip";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
+import type { Props } from "react-select";
 
-export type ChildrenEventType = {
-  value: string;
-  label: string;
-  created: boolean;
-  owner: {
-    avatar: string;
-    id: number;
-    email: string;
-    name: string;
-    username: string;
-    membership: MembershipRole;
-    eventTypeSlugs: string[];
-    profile: UserProfile;
-  };
-  slug: string;
-  hidden: boolean;
-};
+export type { ChildrenEventType } from "@calcom/features/eventtypes/lib/childrenEventType";
 
 export type ChildrenEventTypeSelectCustomClassNames = {
   assignToSelect?: SelectClassNames;
@@ -85,7 +66,7 @@ export const ChildrenEventTypeSelect = ({
        - Slides down from the top instead of just teleporting in from nowhere*/}
       <ul
         className={classNames(
-          "border-subtle divide-subtle mt-3 divide-y rounded-md",
+          "mt-3 divide-y divide-subtle rounded-md border-subtle",
           value.length >= 1 && "border",
           customClassNames?.selectedChildrenList?.container
         )}
@@ -110,7 +91,7 @@ export const ChildrenEventTypeSelect = ({
                 <div className="flex flex-col">
                   <span
                     className={classNames(
-                      "text text-sm font-semibold leading-none",
+                      "text font-semibold text-sm leading-none",
                       customClassNames?.selectedChildrenList?.listItem?.name
                     )}>
                     {children.owner.name || children.owner.email}
@@ -144,7 +125,7 @@ export const ChildrenEventTypeSelect = ({
                   {children.owner.username && (
                     <small
                       className={classNames(
-                        "text-subtle font-normal leading-normal",
+                        "font-normal text-subtle leading-normal",
                         customClassNames?.selectedChildrenList?.listItem?.eventLink
                       )}>
                       {`/${children.owner.username}/${children.slug}`}
@@ -179,9 +160,7 @@ export const ChildrenEventTypeSelect = ({
                           target="_blank"
                           variant="icon"
                           className={customClassNames?.selectedChildrenList?.listItem?.previewEventTypeButton}
-                          href={`${getBookerBaseUrlSync(
-                            children.owner.profile?.organization?.slug ?? null
-                          )}/${children.owner?.username}/${children.slug}`}
+                          href={`/${children.owner?.username}/${children.slug}`}
                           StartIcon="external-link"
                         />
                       </Tooltip>

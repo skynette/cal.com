@@ -1,10 +1,3 @@
-import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
-import { cookies, headers } from "next/headers";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-
-import { orgDomainConfig } from "@calcom/features/ee/organizations/lib/orgDomains";
 import {
   ANDROID_CHROME_ICON_192,
   ANDROID_CHROME_ICON_256,
@@ -18,8 +11,13 @@ import {
   WEBAPP_URL,
 } from "@calcom/lib/constants";
 import logger from "@calcom/lib/logger";
-
+import { isTrustedInternalUrl, logBlockedSSRFAttempt, validateUrlForSSRF } from "@calcom/lib/ssrfProtection";
 import { buildLegacyRequest } from "@lib/buildLegacyCtx";
+import { defaultResponderForAppDir } from "app/api/defaultResponderForAppDir";
+import { cookies, headers } from "next/headers";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { z } from "zod";
 
 const log = logger.getSubLogger({ prefix: ["[api/logo]"] });
 
@@ -169,7 +167,8 @@ async function getHandler(request: NextRequest) {
 
   // Create a legacy request object for compatibility
   const legacyReq = buildLegacyRequest(await headers(), await cookies());
-  const { isValidOrgDomain } = orgDomainConfig(legacyReq);
+  const currentOrgDomain = null;
+  const isValidOrgDomain = false;
 
   const hostname = request.headers.get("host");
   if (!hostname) {
@@ -184,13 +183,32 @@ async function getHandler(request: NextRequest) {
   const [subdomain] = domains;
   const teamLogos = await getTeamLogos(subdomain, isValidOrgDomain);
 
-  // Resolve all icon types to team logos, falling back to Cal.com defaults.
+  // Resolve all icon types to team logos, falling back to Cal.diy defaults.
   const type: LogoType = parsedQuery?.type && isValidLogoType(parsedQuery.type) ? parsedQuery.type : "logo";
   const logoDefinition = logoDefinitions[type];
   const filteredLogo = teamLogos[logoDefinition.source] ?? logoDefinition.fallback;
 
   try {
-    const response = await fetch(filteredLogo);
+    let response: Response;
+
+    // Internal URLs (fallbacks from WEBAPP_URL) are trusted
+    if (isTrustedInternalUrl(filteredLogo, WEBAPP_URL)) {
+      response = await fetch(filteredLogo);
+    }
+    // External URLs (including data URLs) need SSRF validation
+    else {
+      const validation = await validateUrlForSSRF(filteredLogo);
+      if (!validation.isValid) {
+        logBlockedSSRFAttempt(filteredLogo, validation.error || "Unknown", { subdomain });
+        // Graceful degradation: use default logo instead of error
+        response = await fetch(logoDefinition.fallback);
+      } else {
+        response = await fetch(filteredLogo, {
+          signal: AbortSignal.timeout(10000), // 10s conservative timeout
+        });
+      }
+    }
+
     const arrayBuffer = await response.arrayBuffer();
     let buffer: Buffer = Buffer.from(arrayBuffer);
     let contentType = response.headers.get("content-type") || "image/png";
@@ -217,7 +235,7 @@ async function getHandler(request: NextRequest) {
     imageResponse.headers.set("Cache-Control", "s-maxage=86400, stale-while-revalidate=60");
 
     return imageResponse;
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: "Failed fetching logo" }, { status: 404 });
   }
 }

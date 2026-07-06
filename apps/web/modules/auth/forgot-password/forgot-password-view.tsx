@@ -54,9 +54,18 @@ export default function ForgotPassword(props: PageProps) {
     }
   };
 
-  const debouncedHandleSubmitPasswordRequest = debounce(submitForgotPasswordRequest, 250);
+  const submitRef = React.useRef(submitForgotPasswordRequest);
+  submitRef.current = submitForgotPasswordRequest;
 
-  const handleSubmit = async (e: SyntheticEvent) => {
+  const debouncedHandleSubmitPasswordRequest = React.useRef(
+    debounce((args: { email: string }) => submitRef.current(args), 250)
+  ).current;
+
+  React.useEffect(() => {
+    return () => debouncedHandleSubmitPasswordRequest.cancel();
+  }, []);
+
+  const handleSubmit = (e: SyntheticEvent) => {
     e.preventDefault();
 
     if (!email) {
@@ -71,12 +80,12 @@ export default function ForgotPassword(props: PageProps) {
     setError(null);
     setSuccess(false);
 
-    await debouncedHandleSubmitPasswordRequest({ email });
+    debouncedHandleSubmitPasswordRequest({ email });
   };
 
   const Success = () => {
     return (
-      <div className="space-y-6 text-sm leading-normal ">
+      <div className="stack-y-6 text-sm leading-normal ">
         <p className="">{t("password_reset_email", { email })}</p>
         <p className="">{t("password_reset_leading")}</p>
         {error && <p className="text-center text-red-600">{error.message}</p>}
@@ -103,9 +112,9 @@ export default function ForgotPassword(props: PageProps) {
       {success && <Success />}
       {!success && (
         <>
-          <div className="space-y-6">{error && <p className="text-red-600">{error.message}</p>}</div>
+          <div className="stack-y-6">{error && <p className="text-red-600">{error.message}</p>}</div>
           <form
-            className="space-y-6"
+            className="stack-y-6"
             onSubmit={handleSubmit}
             action="#"
             style={
@@ -125,11 +134,11 @@ export default function ForgotPassword(props: PageProps) {
               placeholder="john.doe@example.com"
               required
             />
-            <div className="space-y-2">
+            <div className="stack-y-2">
               <Button
-                className="w-full justify-center bg-white hover:bg-black hover:text-white"
+                className="w-full justify-center"
                 type="submit"
-                color="primary"
+                color="secondary"
                 disabled={loading}
                 aria-label={t("request_password_reset")}
                 loading={loading}>

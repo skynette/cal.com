@@ -139,7 +139,7 @@ const EventTypeGroup = ({
     keyName: "fieldId",
   });
   return (
-    <div className="ml-2 flex flex-col space-y-6">
+    <div className="ml-2 flex flex-col stack-y-6">
       {fields.map(
         (field, index) =>
           field.selected && (
@@ -233,7 +233,7 @@ const ConfigureStepCardContent: FC<ConfigureStepCardProps> = (props) => {
           {eventTypeGroups[groupIndex].eventTypes.some((eventType) => eventType.selected === true) && (
             <div className="mb-2 mt-4 flex items-center">
               <Avatar
-                alt=""
+                alt={t("app_icon", { app: group.slug })}
                 imageSrc={group.image} // if no image, use default avatar
                 size="md"
                 className="inline-flex justify-center"

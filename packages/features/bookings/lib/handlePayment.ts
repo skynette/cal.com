@@ -4,12 +4,14 @@ import { eventTypeMetaDataSchemaWithTypedApps } from "@calcom/app-store/zod-util
 import type { Fields } from "@calcom/features/bookings/lib/getBookingFields";
 import { fieldTypesConfigMap } from "@calcom/features/form-builder/fieldTypes";
 import { convertToSmallestCurrencyUnit } from "@calcom/lib/currencyConversions";
-import type { AppCategories, Prisma, EventType } from "@calcom/prisma/client";
+import type { AppCategories, Prisma, EventType, PaymentOption } from "@calcom/prisma/client";
 import type { CalendarEvent } from "@calcom/types/Calendar";
 import type { IAbstractPaymentService } from "@calcom/types/PaymentService";
 
-const isPaymentService = (x: unknown): x is { PaymentService: any } =>
-  !!x && typeof x === "object" && "PaymentService" in x && typeof x.PaymentService === "function";
+const isPaymentService = (
+  x: unknown
+): x is { BuildPaymentService: (credentials: { key: unknown }) => unknown } =>
+  !!x && typeof x === "object" && "BuildPaymentService" in x && typeof x.BuildPaymentService === "function";
 
 const handlePayment = async ({
   evt,
@@ -61,17 +63,20 @@ const handlePayment = async ({
     console.warn(`payment App service not found for key: ${key}`);
     return null;
   }
-  const PaymentService = paymentAppModule.PaymentService;
-  const paymentInstance = new PaymentService(paymentAppCredentials) as IAbstractPaymentService;
+  const createPaymentService = paymentAppModule.BuildPaymentService;
+  const paymentInstance = createPaymentService(paymentAppCredentials) as IAbstractPaymentService;
 
   const apps = eventTypeMetaDataSchemaWithTypedApps.parse(selectedEventType?.metadata)?.apps;
+  const appData = apps?.[paymentAppCredentials.appId] as
+    | { paymentOption?: string; currency?: string; price?: number; enabled?: boolean }
+    | undefined;
 
-  const paymentOption = apps?.[paymentAppCredentials.appId].paymentOption || "ON_BOOKING";
-  const paymentCurrency = apps?.[paymentAppCredentials.appId].currency;
+  const paymentOption = (appData?.paymentOption || "ON_BOOKING") as PaymentOption;
+  const paymentCurrency = appData?.currency;
   // Ensure we have a valid currency - fallback to USD if undefined
   const currency = paymentCurrency || "USD";
 
-  let totalAmount = apps?.[paymentAppCredentials.appId].price || 0;
+  let totalAmount = appData?.price || 0;
 
   if ((bookingFields || [])?.length > 0) {
     let addonsPrice = 0;
@@ -141,8 +146,8 @@ const handlePayment = async ({
           const selectedValues = Array.isArray(responseValue)
             ? responseValue
             : responseValue
-            ? [responseValue]
-            : [];
+              ? [responseValue]
+              : [];
 
           selectedValues.forEach((value) => {
             const option = typedInput.options?.find((opt) => opt.value === value);

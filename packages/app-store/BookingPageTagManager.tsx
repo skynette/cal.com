@@ -107,13 +107,14 @@ export default function BookingPageTagManager({
           // Only support UpperCase,_and numbers in template variables. This prevents accidental replacement of other strings.
           const regex = /\{([A-Z_\d]+)\}/g;
           let matches;
+          const appDataRecord = eventTypeAppData as Record<string, unknown>;
           while ((matches = regex.exec(val))) {
             const variableName = matches[1];
-            if (eventTypeAppData[variableName]) {
+            if (appDataRecord[variableName]) {
               // Replace if value is available. It can possible not be a template variable that just matches the regex.
               val = val.replace(
                 new RegExp(`{${variableName}}`, "g"),
-                eventTypeAppData[variableName]
+                String(appDataRecord[variableName])
               ) as NonNullable<T>;
             }
           }
@@ -132,6 +133,7 @@ export default function BookingPageTagManager({
           });
 
           return (
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: Analytics script injection
             <Script
               data-testid={`cal-analytics-app-${appId}`}
               src={parseValue(script.src)}

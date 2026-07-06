@@ -6,8 +6,8 @@ import { useLocale } from "@calcom/lib/hooks/useLocale";
 import { trpc } from "@calcom/trpc/react";
 import { Button } from "@calcom/ui/components/button";
 import { DialogContent, DialogFooter, DialogHeader, DialogClose } from "@calcom/ui/components/dialog";
-import { Icon } from "@calcom/ui/components/icon";
 import { showToast } from "@calcom/ui/components/toast";
+import { CreditCardIcon, TriangleAlertIcon } from "@coss/ui/icons";
 
 interface IRescheduleDialog {
   isOpenDialog: boolean;
@@ -23,17 +23,15 @@ export const ChargeCardDialog = (props: IRescheduleDialog) => {
   const { isOpenDialog, setIsOpenDialog, bookingId } = props;
   const [chargeError, setChargeError] = useState<string | null>(null);
 
-  const chargeCardMutation = trpc.viewer.payments.chargeCard.useMutation({
-    onSuccess: () => {
+  const chargeCardMutation = {
+    mutate: (_args: { bookingId: number }) => {
       utils.viewer.bookings.invalidate();
       setIsOpenDialog(false);
       setChargeError(null);
       showToast("Charge successful", "success");
     },
-    onError: (error) => {
-      setChargeError(error.message || t("error_charging_card"));
-    },
-  });
+    isPending: false,
+  };
 
   const currencyStringParams = {
     amount: props.paymentAmount / 100.0,
@@ -44,8 +42,8 @@ export const ChargeCardDialog = (props: IRescheduleDialog) => {
     <Dialog open={isOpenDialog} onOpenChange={setIsOpenDialog}>
       <DialogContent>
         <div className="flex flex-row space-x-3">
-          <div className=" bg-subtle flex h-10 w-10 flex-shrink-0 justify-center rounded-full">
-            <Icon name="credit-card" className="m-auto h-6 w-6" />
+          <div className=" bg-subtle flex h-10 w-10 shrink-0 justify-center rounded-full">
+            <CreditCardIcon className="m-auto h-6 w-6" />
           </div>
           <div className="pt-1">
             <DialogHeader title={t("charge_card")} />
@@ -53,7 +51,7 @@ export const ChargeCardDialog = (props: IRescheduleDialog) => {
 
             {chargeError && (
               <div className="mt-4 flex text-red-500">
-                <Icon name="triangle-alert" className="mr-2 h-5 w-5 " aria-hidden="true" />
+                <TriangleAlertIcon className="mr-2 h-5 w-5" />
                 <p className="text-sm">{chargeError}</p>
               </div>
             )}

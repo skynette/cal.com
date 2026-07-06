@@ -1,15 +1,14 @@
 import type { PipeTransform } from "@nestjs/common";
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { plainToClass } from "class-transformer";
 import type { ValidationError } from "class-validator";
 import { validateSync } from "class-validator";
-
 import {
   ById_2024_09_04,
   ByTeamSlugAndEventTypeSlug_2024_09_04,
   ByUsernameAndEventTypeSlug_2024_09_04,
+  ByUsernames_2024_09_04,
 } from "./get-slots.input";
-import { ByUsernames_2024_09_04 } from "./get-slots.input";
 
 export type GetSlotsInput_2024_09_04 =
   | ById_2024_09_04
@@ -19,7 +18,6 @@ export type GetSlotsInput_2024_09_04 =
 
 export type GetSlotsInputWithRouting_2024_09_04 = GetSlotsInput_2024_09_04 & {
   teamMemberEmail?: string;
-  routingFormResponseId?: number;
   routedTeamMemberIds?: number[];
   skipContactOwner?: boolean;
 };
@@ -131,18 +129,24 @@ export class GetSlotsInputPipe implements PipeTransform {
   }
 
   private isById(value: GetSlotsInput_2024_09_04): value is ById_2024_09_04 {
-    return value.hasOwnProperty("eventTypeId");
+    return Object.prototype.hasOwnProperty.call(value, "eventTypeId");
   }
 
   private isByUsernameAndEventTypeSlug(
     value: GetSlotsInput_2024_09_04
   ): value is ByUsernameAndEventTypeSlug_2024_09_04 {
-    return value.hasOwnProperty("username") && value.hasOwnProperty("eventTypeSlug");
+    return (
+      Object.prototype.hasOwnProperty.call(value, "username") &&
+      Object.prototype.hasOwnProperty.call(value, "eventTypeSlug")
+    );
   }
 
   private isByTeamSlugAndEventTypeSlug(
     value: GetSlotsInput_2024_09_04
   ): value is ByTeamSlugAndEventTypeSlug_2024_09_04 {
-    return value.hasOwnProperty("teamSlug") && value.hasOwnProperty("eventTypeSlug");
+    return (
+      Object.prototype.hasOwnProperty.call(value, "teamSlug") &&
+      Object.prototype.hasOwnProperty.call(value, "eventTypeSlug")
+    );
   }
 }

@@ -6,8 +6,8 @@ import { appDataSchema as alby_zod_ts } from "./alby/zod";
 import { appDataSchema as basecamp3_zod_ts } from "./basecamp3/zod";
 import { appDataSchema as btcpayserver_zod_ts } from "./btcpayserver/zod";
 import { appDataSchema as closecom_zod_ts } from "./closecom/zod";
-import { appDataSchema as coinley_zod_ts } from "./coinley/zod";
 import { appDataSchema as dailyvideo_zod_ts } from "./dailyvideo/zod";
+import { appDataSchema as databuddy_zod_ts } from "./databuddy/zod";
 import { appDataSchema as dub_zod_ts } from "./dub/zod";
 import { appDataSchema as fathom_zod_ts } from "./fathom/zod";
 import { appDataSchema as feishucalendar_zod_ts } from "./feishucalendar/zod";
@@ -23,6 +23,7 @@ import { appDataSchema as intercom_zod_ts } from "./intercom/zod";
 import { appDataSchema as jelly_zod_ts } from "./jelly/zod";
 import { appDataSchema as jitsivideo_zod_ts } from "./jitsivideo/zod";
 import { appDataSchema as larkcalendar_zod_ts } from "./larkcalendar/zod";
+import { appDataSchema as lyra_zod_ts } from "./lyra/zod";
 import { appDataSchema as make_zod_ts } from "./make/zod";
 import { appDataSchema as matomo_zod_ts } from "./matomo/zod";
 import { appDataSchema as metapixel_zod_ts } from "./metapixel/zod";
@@ -35,9 +36,9 @@ import { appDataSchema as pipedrive_crm_zod_ts } from "./pipedrive-crm/zod";
 import { appDataSchema as plausible_zod_ts } from "./plausible/zod";
 import { appDataSchema as posthog_zod_ts } from "./posthog/zod";
 import { appDataSchema as qr_code_zod_ts } from "./qr_code/zod";
-import { appDataSchema as routing_forms_zod_ts } from "./routing-forms/zod";
 import { appDataSchema as salesforce_zod_ts } from "./salesforce/zod";
 import { appDataSchema as shimmervideo_zod_ts } from "./shimmervideo/zod";
+import { appDataSchema as stablezact_zod_ts } from "./stablezact/zod";
 import { appDataSchema as stripepayment_zod_ts } from "./stripepayment/zod";
 import { appDataSchema as tandemvideo_zod_ts } from "./tandemvideo/zod";
 import { appDataSchema as booking_pages_tag_zod_ts } from "./templates/booking-pages-tag/zod";
@@ -52,14 +53,13 @@ import { appDataSchema as zoho_bigin_zod_ts } from "./zoho-bigin/zod";
 import { appDataSchema as zohocalendar_zod_ts } from "./zohocalendar/zod";
 import { appDataSchema as zohocrm_zod_ts } from "./zohocrm/zod";
 import { appDataSchema as zoomvideo_zod_ts } from "./zoomvideo/zod";
-
 export const appDataSchemas = {
   alby: alby_zod_ts,
   basecamp3: basecamp3_zod_ts,
   btcpayserver: btcpayserver_zod_ts,
   closecom: closecom_zod_ts,
-  coinley: coinley_zod_ts,
   dailyvideo: dailyvideo_zod_ts,
+  databuddy: databuddy_zod_ts,
   dub: dub_zod_ts,
   fathom: fathom_zod_ts,
   feishucalendar: feishucalendar_zod_ts,
@@ -75,6 +75,7 @@ export const appDataSchemas = {
   jelly: jelly_zod_ts,
   jitsivideo: jitsivideo_zod_ts,
   larkcalendar: larkcalendar_zod_ts,
+  lyra: lyra_zod_ts,
   make: make_zod_ts,
   matomo: matomo_zod_ts,
   metapixel: metapixel_zod_ts,
@@ -87,9 +88,9 @@ export const appDataSchemas = {
   plausible: plausible_zod_ts,
   posthog: posthog_zod_ts,
   qr_code: qr_code_zod_ts,
-  "routing-forms": routing_forms_zod_ts,
   salesforce: salesforce_zod_ts,
   shimmervideo: shimmervideo_zod_ts,
+  stablezact: stablezact_zod_ts,
   stripe: stripepayment_zod_ts,
   tandemvideo: tandemvideo_zod_ts,
   "booking-pages-tag": booking_pages_tag_zod_ts,

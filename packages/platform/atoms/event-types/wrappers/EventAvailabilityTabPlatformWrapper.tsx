@@ -1,14 +1,13 @@
 import { useFormContext } from "react-hook-form";
 
-import type { EventAvailabilityTabCustomClassNames } from "@calcom/features/eventtypes/components/tabs/availability/EventAvailabilityTab";
-import { EventAvailabilityTab } from "@calcom/features/eventtypes/components/tabs/availability/EventAvailabilityTab";
-import type { ScheduleQueryData } from "@calcom/features/eventtypes/components/tabs/availability/EventAvailabilityTab";
 import type { EventTypeSetup, FormValues } from "@calcom/features/eventtypes/lib/types";
 import type { User } from "@calcom/prisma/client";
+import type { EventAvailabilityTabCustomClassNames } from "@calcom/web/modules/event-types/components/tabs/availability/EventAvailabilityTab";
+import { EventAvailabilityTab } from "@calcom/web/modules/event-types/components/tabs/availability/EventAvailabilityTab";
+import type { ScheduleQueryData } from "@calcom/web/modules/event-types/components/tabs/availability/EventAvailabilityTab";
 
 import { useAtomSchedule } from "../../hooks/schedules/useAtomSchedule";
 import { useSchedules } from "../../hooks/schedules/useSchedules";
-import { useTeamMembers } from "../../hooks/teams/useTeamMembers";
 import { useAtomHostSchedules } from "../hooks/useAtomHostSchedules";
 
 type EventAvailabilityTabPlatformWrapperProps = {
@@ -32,7 +31,6 @@ const EventAvailabilityTabPlatformWrapper = ({
   const { data: schedulesQueryData, isLoading: isSchedulesPending } = useSchedules();
 
   const hostSchedulesQuery = useAtomHostSchedules;
-  const { data: teamMembers } = useTeamMembers({ teamId });
 
   if (!atomSchedule) {
     return <></>;
@@ -42,13 +40,7 @@ const EventAvailabilityTabPlatformWrapper = ({
     <EventAvailabilityTab
       {...props}
       user={user}
-      teamMembers={
-        teamMembers?.map((member) => ({
-          avatar: member.user.avatarUrl ?? "",
-          id: member.userId,
-          name: member.user.name,
-        })) ?? []
-      }
+      teamMembers={[]}
       schedulesQueryData={schedulesQueryData}
       isSchedulesPending={isSchedulesPending}
       isSchedulePending={isSchedulePending}

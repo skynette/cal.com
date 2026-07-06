@@ -2,13 +2,14 @@
 
 import { useRouter } from "next/navigation";
 
-import Shell from "@calcom/features/shell/Shell";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
 import type { RouterOutputs } from "@calcom/trpc/react";
 import { trpc } from "@calcom/trpc/react";
 import { Button } from "@calcom/ui/components/button";
 import { EmptyScreen } from "@calcom/ui/components/empty-screen";
 import { showToast } from "@calcom/ui/components/toast";
+
+import Shell from "~/shell/Shell";
 
 export type OrgUpgradeBannerProps = {
   data: RouterOutputs["viewer"]["me"]["getUserTopBanners"]["orgUpgradeBanner"];
@@ -18,21 +19,16 @@ export default function UpgradePage() {
   const { t } = useLocale();
 
   const router = useRouter();
-  const publishOrgMutation = trpc.viewer.organizations.publish.useMutation({
-    onSuccess(data) {
-      router.push(data.url);
-    },
-    onError: (error) => {
-      showToast(error.message, "error");
-    },
-  });
+  const publishOrgMutation = { mutate: (..._args: unknown[]) => {}, mutateAsync: async () => ({}), isPending: false };
 
-  const doesUserHaveOrgToUpgrade = trpc.viewer.organizations.checkIfOrgNeedsUpgrade.useQuery();
+
+  const upgradeData = { data: undefined as { canUpgrade?: boolean } | undefined };
+
 
   return (
     <Shell>
-      <div className="max-w-screen-lg">
-        {doesUserHaveOrgToUpgrade.data ? (
+      <div className="max-w-(--breakpoint-lg)">
+        {upgradeData.data ? (
           <EmptyScreen
             headline={t("your_upgrade_is_here")}
             description={t("your_upgrade_is_here_description")}

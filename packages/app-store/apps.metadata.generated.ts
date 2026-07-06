@@ -13,12 +13,13 @@ import bolna_config_json from "./bolna/config.json";
 import btcpayserver_config_json from "./btcpayserver/config.json";
 import { metadata as caldavcalendar__metadata_ts } from "./caldavcalendar/_metadata";
 import campfire_config_json from "./campfire/config.json";
+import caretta_config_json from "./caretta/config.json";
 import chatbase_config_json from "./chatbase/config.json";
 import clic_config_json from "./clic/config.json";
 import closecom_config_json from "./closecom/config.json";
-import coinley_config_json from "./coinley/config.json";
 import cron_config_json from "./cron/config.json";
 import { metadata as dailyvideo__metadata_ts } from "./dailyvideo/_metadata";
+import databuddy_config_json from "./databuddy/config.json";
 import deel_config_json from "./deel/config.json";
 import demodesk_config_json from "./demodesk/config.json";
 import dialpad_config_json from "./dialpad/config.json";
@@ -31,6 +32,7 @@ import { metadata as exchange2013calendar__metadata_ts } from "./exchange2013cal
 import { metadata as exchange2016calendar__metadata_ts } from "./exchange2016calendar/_metadata";
 import exchangecalendar_config_json from "./exchangecalendar/config.json";
 import facetime_config_json from "./facetime/config.json";
+import famulor_config_json from "./famulor/config.json";
 import fathom_config_json from "./fathom/config.json";
 import { metadata as feishucalendar__metadata_ts } from "./feishucalendar/_metadata";
 import fonio_ai_config_json from "./fonio-ai/config.json";
@@ -54,6 +56,7 @@ import { metadata as jitsivideo__metadata_ts } from "./jitsivideo/_metadata";
 import { metadata as larkcalendar__metadata_ts } from "./larkcalendar/_metadata";
 import lindy_config_json from "./lindy/config.json";
 import linear_config_json from "./linear/config.json";
+import lyra_config_json from "./lyra/config.json";
 import make_config_json from "./make/config.json";
 import matomo_config_json from "./matomo/config.json";
 import metapixel_config_json from "./metapixel/config.json";
@@ -76,7 +79,6 @@ import raycast_config_json from "./raycast/config.json";
 import retell_ai_config_json from "./retell-ai/config.json";
 import riverside_config_json from "./riverside/config.json";
 import roam_config_json from "./roam/config.json";
-import routing_forms_config_json from "./routing-forms/config.json";
 import salesforce_config_json from "./salesforce/config.json";
 import salesroom_config_json from "./salesroom/config.json";
 import sendgrid_config_json from "./sendgrid/config.json";
@@ -84,6 +86,7 @@ import shimmervideo_config_json from "./shimmervideo/config.json";
 import signal_config_json from "./signal/config.json";
 import sirius_video_config_json from "./sirius_video/config.json";
 import skype_config_json from "./skype/config.json";
+import stablezact_config_json from "./stablezact/config.json";
 import { metadata as stripepayment__metadata_ts } from "./stripepayment/_metadata";
 import sylapsvideo_config_json from "./sylapsvideo/config.json";
 import synthflow_config_json from "./synthflow/config.json";
@@ -111,7 +114,6 @@ import zoho_bigin_config_json from "./zoho-bigin/config.json";
 import zohocalendar_config_json from "./zohocalendar/config.json";
 import zohocrm_config_json from "./zohocrm/config.json";
 import { metadata as zoomvideo__metadata_ts } from "./zoomvideo/_metadata";
-
 export const appStoreMetadata = {
   alby: alby_config_json,
   amie: amie_config_json,
@@ -124,12 +126,13 @@ export const appStoreMetadata = {
   btcpayserver: btcpayserver_config_json,
   caldavcalendar: caldavcalendar__metadata_ts,
   campfire: campfire_config_json,
+  caretta: caretta_config_json,
   chatbase: chatbase_config_json,
   clic: clic_config_json,
   closecom: closecom_config_json,
-  coinley: coinley_config_json,
   cron: cron_config_json,
   dailyvideo: dailyvideo__metadata_ts,
+  databuddy: databuddy_config_json,
   deel: deel_config_json,
   demodesk: demodesk_config_json,
   dialpad: dialpad_config_json,
@@ -142,6 +145,7 @@ export const appStoreMetadata = {
   exchange2016calendar: exchange2016calendar__metadata_ts,
   exchangecalendar: exchangecalendar_config_json,
   facetime: facetime_config_json,
+  famulor: famulor_config_json,
   fathom: fathom_config_json,
   feishucalendar: feishucalendar__metadata_ts,
   "fonio-ai": fonio_ai_config_json,
@@ -165,6 +169,7 @@ export const appStoreMetadata = {
   larkcalendar: larkcalendar__metadata_ts,
   lindy: lindy_config_json,
   linear: linear_config_json,
+  lyra: lyra_config_json,
   make: make_config_json,
   matomo: matomo_config_json,
   metapixel: metapixel_config_json,
@@ -187,7 +192,6 @@ export const appStoreMetadata = {
   "retell-ai": retell_ai_config_json,
   riverside: riverside_config_json,
   roam: roam_config_json,
-  "routing-forms": routing_forms_config_json,
   salesforce: salesforce_config_json,
   salesroom: salesroom_config_json,
   sendgrid: sendgrid_config_json,
@@ -195,6 +199,7 @@ export const appStoreMetadata = {
   signal: signal_config_json,
   sirius_video: sirius_video_config_json,
   skype: skype_config_json,
+  stablezact: stablezact_config_json,
   stripepayment: stripepayment__metadata_ts,
   sylapsvideo: sylapsvideo_config_json,
   synthflow: synthflow_config_json,

@@ -1,7 +1,6 @@
-import type { IncomingMessage } from "http";
-import { z } from "zod";
-
+import type { IncomingMessage } from "node:http";
 import { timeZoneSchema } from "@calcom/lib/dayjs/timeZone.schema";
+import { z } from "zod";
 
 const isValidDateString = (val: string) => !isNaN(Date.parse(val));
 
@@ -33,10 +32,10 @@ export const getScheduleSchemaObject = z.object({
   teamMemberEmail: z.string().nullish(),
   routedTeamMemberIds: z.array(z.number()).nullish(),
   skipContactOwner: z.boolean().nullish(),
+  rrHostSubsetIds: z.array(z.number()).nullish(),
   _enableTroubleshooter: z.boolean().optional(),
   _bypassCalendarBusyTimes: z.boolean().optional(),
   _silentCalendarFailures: z.boolean().optional(),
-  routingFormResponseId: z.number().optional(),
   queuedFormResponseId: z.string().nullish(),
   email: z.string().nullish(),
 });
@@ -74,14 +73,6 @@ export const reserveSlotSchema = z
     (data) => !!data.eventTypeId || !!data.slotUtcStartDate || !!data.slotUtcEndDate,
     "Either slotUtcStartDate, slotUtcEndDate or eventTypeId should be filled in."
   );
-
-export type Slot = {
-  time: string;
-  userIds?: number[];
-  attendees?: number;
-  bookingUid?: string;
-  users?: string[];
-};
 
 export const removeSelectedSlotSchema = z.object({
   uid: z.string().nullable(),

@@ -86,12 +86,6 @@ export const AppMetaSchema = z
     price: z.number().optional(),
     commission: z.number().optional(),
     licenseRequired: z.boolean().optional(),
-    teamsPlanRequired: z
-      .object({
-        upgradeUrl: z.string(),
-      })
-      .passthrough()
-      .optional(),
     appData: appDataSchema,
     paid: paidAppDataSchema.optional(),
     dirName: z.string().optional(),
@@ -112,6 +106,12 @@ export const AppMetaSchema = z
     imageSrc: z.string().optional(),
     label: z.string().optional(),
     linkType: z.string().optional(),
+    externalLink: z
+      .object({
+        url: z.string(),
+        newTab: z.boolean().optional(),
+      })
+      .optional(),
   })
   .passthrough();
 

@@ -4,10 +4,10 @@ import { Toaster } from "sonner";
 
 import AppNotInstalledMessage from "@calcom/app-store/_components/AppNotInstalledMessage";
 import { useLocale } from "@calcom/lib/hooks/useLocale";
-import { trpc } from "@calcom/trpc";
+import { trpc } from "@calcom/trpc/react";
 import { Button } from "@calcom/ui/components/button";
 import { TextField } from "@calcom/ui/components/form";
-import { Icon } from "@calcom/ui/components/icon";
+import { CircleAlertIcon } from "@coss/ui/icons";
 import { showToast } from "@calcom/ui/components/toast";
 
 export default function PayPalSetup() {
@@ -51,6 +51,7 @@ export default function PayPalSetup() {
                 value={newClientId}
                 onChange={(e) => setNewClientId(e.target.value)}
                 role="presentation"
+                className="mb-6"
               />
 
               <TextField
@@ -67,7 +68,7 @@ export default function PayPalSetup() {
               {/* Button to submit */}
               <div className="mt-5 flex flex-row justify-end">
                 <Button
-                  color="secondary"
+                  color="primary"
                   onClick={() => {
                     saveKeysMutation.mutate({
                       credentialId,
@@ -82,26 +83,27 @@ export default function PayPalSetup() {
               </div>
             </form>
             <div>
-              <p className="text-lgf text-default mt-5 font-bold">Getting started with Paypal APP</p>
+              <p className="text-lgf text-default mt-5 font-bold">Getting started with the PayPal app</p>
               <p className="text-default font-semi mt-2">
-                Here in Cal.com we offer Paypal as one of our payment gateway. You can use your own Paypal
-                Business account to receive payments from your customers enabling and setting up price and
-                currency for each of your event types.
+                Cal.diy offers PayPal as one of its payment gateways. You can use your own PayPal
+                Business account to receive payments from your customers by setting a price and currency
+                for each of your event types.
               </p>
 
               <p className="text-lgf text-default mt-5 inline-flex font-bold">
-                <Icon name="circle-alert" className="mr-2 mt-1 h-4 w-4" /> Important requirements:
+                <CircleAlertIcon className="mr-2 mt-1 h-4 w-4" /> Important requirements:
               </p>
               <ul className="text-default ml-1 mt-2 list-disc pl-2">
-                <li>Paypal Business account</li>
-                <li>Paypal Developer account</li>
+                <li>PayPal Business account</li>
+                <li>PayPal Developer account</li>
               </ul>
 
               <p className="text-default mb-2 mt-5 font-bold">Resources:</p>
               <a
                 className="text-orange-600 underline"
                 target="_blank"
-                href="https://developer.paypal.com/api/rest/#link-getclientidandclientsecret">
+                href="https://developer.paypal.com/api/rest/#link-getclientidandclientsecret"
+                rel="noreferrer">
                 Link to Paypal developer API REST Setup Guide:
                 https://developer.paypal.com/api/rest/#link-getclientidandclientsecret
               </a>
@@ -116,11 +118,12 @@ export default function PayPalSetup() {
               <ol className="text-default ml-1 mt-5 list-decimal pl-2">
                 {/* @TODO: translate */}
                 <li>
-                  Log into your Paypal Developer account and create a new app{" "}
+                  Log into your PayPal Developer account and create a new app{" "}
                   <a
                     target="_blank"
                     href="https://developer.paypal.com/dashboard/applications/live"
-                    className="text-orange-600 underline">
+                    className="text-orange-600 underline"
+                    rel="noreferrer">
                     {t("here")}
                   </a>
                   .
@@ -142,7 +145,7 @@ export default function PayPalSetup() {
                 <li>You should be all setup after this.</li>
               </ol>
               <p className="text-default mt-5 inline-flex font-bold">
-                <Icon name="circle-alert" className="mr-2 mt-1 h-4 w-4" />
+                <CircleAlertIcon className="mr-2 mt-1 h-4 w-4" />
                 Reminder:
               </p>
               <p className="text-default mt-2">

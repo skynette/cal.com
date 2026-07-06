@@ -1,16 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
+import { PrismaBookingReportRepository } from "@calcom/features/bookingReport/repositories/PrismaBookingReportRepository";
 import handleCancelBooking from "@calcom/features/bookings/lib/handleCancelBooking";
 import { BookingRepository } from "@calcom/features/bookings/repositories/BookingRepository";
 import { BookingAccessService } from "@calcom/features/bookings/services/BookingAccessService";
-import { PrismaBookingReportRepository } from "@calcom/lib/server/repository/bookingReport";
-import { BookingStatus, BookingReportReason } from "@calcom/prisma/enums";
-
+import { BookingReportReason, BookingStatus } from "@calcom/prisma/enums";
 import { TRPCError } from "@trpc/server";
-
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { reportBookingHandler } from "./reportBooking.handler";
 
-vi.mock("@calcom/lib/server/repository/bookingReport");
+vi.mock("@calcom/features/bookingReport/repositories/PrismaBookingReportRepository");
 vi.mock("@calcom/features/bookings/lib/handleCancelBooking");
 vi.mock("@calcom/features/bookings/repositories/BookingRepository");
 vi.mock("@calcom/features/bookings/services/BookingAccessService");
@@ -21,6 +18,11 @@ vi.mock("@calcom/lib/logger", () => ({
       error: vi.fn(),
     }),
   },
+}));
+
+vi.mock("@calcom/prisma", () => ({
+  default: {},
+  prisma: {},
 }));
 
 describe("reportBookingHandler", () => {
@@ -58,9 +60,9 @@ describe("reportBookingHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    vi.mocked(BookingRepository).mockImplementation(() => mockBookingRepo);
-    vi.mocked(PrismaBookingReportRepository).mockImplementation(() => mockReportRepo);
-    vi.mocked(BookingAccessService).mockImplementation(() => mockBookingAccessService);
+    vi.mocked(BookingRepository).mockImplementation(function() { return mockBookingRepo; });
+    vi.mocked(PrismaBookingReportRepository).mockImplementation(function() { return mockReportRepo; });
+    vi.mocked(BookingAccessService).mockImplementation(function() { return mockBookingAccessService; });
     mockReportRepo.createReport.mockResolvedValue({ id: "new-report" });
   });
 
@@ -75,7 +77,7 @@ describe("reportBookingHandler", () => {
             bookingUid: "test-booking-uid",
             reason: BookingReportReason.SPAM,
           },
-        })
+          })
       ).rejects.toThrow(TRPCError);
 
       await expect(
@@ -85,7 +87,7 @@ describe("reportBookingHandler", () => {
             bookingUid: "test-booking-uid",
             reason: BookingReportReason.SPAM,
           },
-        })
+          })
       ).rejects.toMatchObject({
         code: "FORBIDDEN",
         message: "You don't have access to this booking",
@@ -103,7 +105,7 @@ describe("reportBookingHandler", () => {
             bookingUid: "test-booking-uid",
             reason: BookingReportReason.SPAM,
           },
-        })
+          })
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
         message: "Booking not found",
@@ -126,7 +128,7 @@ describe("reportBookingHandler", () => {
             bookingUid: "test-booking-uid",
             reason: BookingReportReason.SPAM,
           },
-        })
+          })
       ).rejects.toMatchObject({
         code: "BAD_REQUEST",
         message: "This booking has already been reported",

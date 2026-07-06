@@ -1,8 +1,6 @@
-import { findTeamMembersMatchingAttributeLogic } from "@calcom/app-store/_utils/raqb/findTeamMembersMatchingAttributeLogic";
 import { enrichHostsWithDelegationCredentials } from "@calcom/app-store/delegationCredential";
 import getOrgIdFromMemberOrTeamId from "@calcom/lib/getOrgIdFromMemberOrTeamId";
 import logger from "@calcom/lib/logger";
-import type { AttributesQueryValue } from "@calcom/lib/raqb/types";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import type { RRResetInterval } from "@calcom/prisma/client";
 import type { RRTimestampBasis } from "@calcom/prisma/enums";
@@ -12,7 +10,7 @@ import type { CredentialPayload } from "@calcom/types/Credential";
 const log = logger.getSubLogger({ prefix: ["[getRoutedUsers]"] });
 
 export const getRoutedUsersWithContactOwnerAndFixedUsers = <
-  T extends { id: number; isFixed?: boolean; email: string }
+  T extends { id: number; isFixed?: boolean; email: string },
 >({
   routedTeamMemberIds,
   users,
@@ -37,34 +35,9 @@ export const getRoutedUsersWithContactOwnerAndFixedUsers = <
   );
 };
 
-async function findMatchingTeamMembersIdsForEventRRSegment(eventType: EventType) {
-  if (!eventType) {
-    return null;
-  }
-
-  const isSegmentationDisabled = !eventType.assignAllTeamMembers || !eventType.assignRRMembersUsingSegment;
-
-  if (isSegmentationDisabled) {
-    return null;
-  }
-
-  if (!eventType.team || !eventType.team.parentId) {
-    return null;
-  }
-
-  const { teamMembersMatchingAttributeLogic } = await findTeamMembersMatchingAttributeLogic({
-    attributesQueryValue: eventType.rrSegmentQueryValue ?? null,
-    teamId: eventType.team.id,
-    orgId: eventType.team.parentId,
-  });
-  if (!teamMembersMatchingAttributeLogic) {
-    return teamMembersMatchingAttributeLogic;
-  }
-  return teamMembersMatchingAttributeLogic.map((member) => member.userId);
-}
-
 type BaseUser = {
   id: number;
+  uuid: string;
   email: string;
 };
 
@@ -81,7 +54,7 @@ type BaseHost<User extends BaseUser> = {
 export type EventType = {
   assignAllTeamMembers: boolean;
   assignRRMembersUsingSegment: boolean;
-  rrSegmentQueryValue: AttributesQueryValue | null | undefined;
+  rrSegmentQueryValue: Record<string, unknown> | null | undefined;
   team: {
     id: number;
     parentId: number | null;
@@ -126,10 +99,12 @@ export function getNormalizedHosts<User extends BaseUser, Host extends BaseHost<
     };
   }
 }
+
 type BaseUserWithCredentialPayload = BaseUser & { credentials: CredentialPayload[] };
+
 export async function getNormalizedHostsWithDelegationCredentials<
   User extends BaseUserWithCredentialPayload,
-  Host extends BaseHost<User>
+  Host extends BaseHost<User>,
 >({
   eventType,
 }: {
@@ -187,8 +162,7 @@ export async function getNormalizedHostsWithDelegationCredentials<
   }
 }
 
-// We don't allow fixed hosts when segment matching is enabled
-// If this ever changes, we need to update this function and return fixed hosts
+// Routing forms feature removed - segment matching always returns all hosts
 export async function findMatchingHostsWithEventSegment<User extends BaseUser>({
   eventType,
   hosts,
@@ -203,13 +177,5 @@ export async function findMatchingHostsWithEventSegment<User extends BaseUser>({
     groupId: string | null;
   }[];
 }) {
-  const matchingRRTeamMembers = await findMatchingTeamMembersIdsForEventRRSegment({
-    ...eventType,
-    rrSegmentQueryValue: eventType.rrSegmentQueryValue ?? null,
-  });
-  const segmentedRoundRobinHosts = hosts.filter((host) => {
-    if (!matchingRRTeamMembers) return true;
-    return matchingRRTeamMembers.includes(host.user.id);
-  });
-  return segmentedRoundRobinHosts;
+  return hosts;
 }

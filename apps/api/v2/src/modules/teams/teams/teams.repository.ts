@@ -1,13 +1,15 @@
-import { PrismaReadService } from "@/modules/prisma/prisma-read.service";
-import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
-import { Injectable, NotFoundException } from "@nestjs/common";
-
 import { teamMetadataSchema } from "@calcom/platform-libraries";
 import type { Membership, Prisma } from "@calcom/prisma/client";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaReadService } from "@/modules/prisma/prisma-read.service";
+import { PrismaWriteService } from "@/modules/prisma/prisma-write.service";
 
 @Injectable()
 export class TeamsRepository {
-  constructor(private readonly dbRead: PrismaReadService, private readonly dbWrite: PrismaWriteService) {}
+  constructor(
+    private readonly dbRead: PrismaReadService,
+    private readonly dbWrite: PrismaWriteService
+  ) {}
 
   async create(team: Prisma.TeamCreateInput) {
     return this.dbWrite.prisma.team.create({
@@ -87,11 +89,12 @@ export class TeamsRepository {
 
   async setDefaultConferencingApp(teamId: number, appSlug?: string, appLink?: string) {
     const team = await this.getById(teamId);
-    const teamMetadata = teamMetadataSchema.parse(team?.metadata);
 
     if (!team) {
-      throw new NotFoundException("user not found");
+      throw new NotFoundException("team not found");
     }
+
+    const teamMetadata = teamMetadataSchema.parse(team.metadata);
 
     return await this.dbWrite.prisma.team.update({
       data: {

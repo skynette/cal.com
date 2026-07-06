@@ -1,20 +1,23 @@
-/* eslint-disable no-undef */
 // vite.config.ts
+
+import path, { dirname, resolve } from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
-import path from "path";
-import { dirname } from "path";
-import { fileURLToPath } from "url";
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const usePool = process.env.USE_POOL ?? "true";
+
+console.log("Platform libraries usePool", usePool);
+
 // https://vitejs.dev/guide/build.html#library-mode
 export default defineConfig({
   define: {
-    "process.env.USE_POOL": `"true"`,
+    "process.env.USE_POOL": JSON.stringify(usePool),
   },
   esbuild: {
     target: "node18",
@@ -31,14 +34,15 @@ export default defineConfig({
         emails: resolve(__dirname, "./emails.ts"),
         "event-types": resolve(__dirname, "./event-types.ts"),
         "app-store": resolve(__dirname, "./app-store.ts"),
-        workflows: resolve(__dirname, "./workflows.ts"),
         slots: resolve(__dirname, "./slots.ts"),
         conferencing: resolve(__dirname, "./conferencing.ts"),
         repositories: resolve(__dirname, "./repositories.ts"),
         bookings: resolve(__dirname, "./bookings.ts"),
         organizations: resolve(__dirname, "./organizations.ts"),
         "private-links": resolve(__dirname, "./private-links.ts"),
-        pbac: resolve(__dirname, "./pbac.ts"),
+        errors: resolve(__dirname, "./errors.ts"),
+        calendars: resolve(__dirname, "./calendars.ts"),
+        tasker: resolve(__dirname, "./tasker.ts"),
       },
       name: "calcom-lib",
       fileName: "calcom-lib",
@@ -51,6 +55,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
+        "@calcom/i18n",
         "react",
         "fs",
         "path",
@@ -204,9 +209,6 @@ export default defineConfig({
   resolve: {
     conditions: ["node", "import", "require", "default"],
     alias: {
-      "@calcom/lib/server/i18n": path.resolve(__dirname, "./i18n.ts"),
-      "./server/i18n": path.resolve(__dirname, "./i18n.ts"),
-      "../server/i18n": path.resolve(__dirname, "./i18n.ts"),
       "@": path.resolve(__dirname, "./src"),
       "@calcom/lib": path.resolve(__dirname, "../../lib"),
       "@calcom/trpc": resolve("../../trpc"),

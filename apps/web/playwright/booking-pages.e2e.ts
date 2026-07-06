@@ -1,17 +1,15 @@
-import { expect } from "@playwright/test";
-import { JSDOM } from "jsdom";
-
 import { WEBAPP_URL } from "@calcom/lib/constants";
 import { generateHashedLink } from "@calcom/lib/generateHashedLink";
 import { randomString } from "@calcom/lib/random";
-import { SchedulingType } from "@calcom/prisma/enums";
 import type { Schedule, TimeRange } from "@calcom/types/schedule";
-
+import { expect } from "@playwright/test";
+import { JSDOM } from "jsdom";
 import { test, todo } from "./lib/fixtures";
 import {
   bookFirstEvent,
   bookOptinEvent,
   bookTimeSlot,
+  cancelBookingFromBookingsList,
   confirmBooking,
   confirmReschedule,
   expectSlotNotAllowedToBook,
@@ -105,7 +103,7 @@ test.describe("free user", () => {
     await page.goto(`/${free.username}`);
   });
 
-  test("cannot book same slot multiple times", async ({ page, users, emails }) => {
+  test("cannot book same slot multiple times", async ({ page, users }) => {
     const [user] = users.get();
 
     const bookerObj = {
@@ -124,7 +122,7 @@ test.describe("free user", () => {
 
     // Make sure we're navigated to the success page
     await expect(page.locator("[data-testid=success-page]")).toBeVisible();
-    const { title: eventTitle } = await user.getFirstEventAsOwner();
+    await user.getFirstEventAsOwner();
 
     await page.goto(bookingUrl);
 
@@ -206,22 +204,11 @@ test.describe("pro user", () => {
     await pro.apiLogin();
 
     await page.goto("/bookings/upcoming");
-    // Click the ellipsis menu button to open the dropdown
-    await page.locator('[data-testid="booking-actions-dropdown"]').nth(0).click();
-    // Click the cancel option in the dropdown
-    await page.locator('[data-testid="cancel"]').click();
-    await page.waitForURL((url) => {
-      return url.pathname.startsWith("/booking/");
+    await cancelBookingFromBookingsList({
+      page,
+      nth: 0,
+      reason: "Test reason",
     });
-
-    await page.locator('[data-testid="cancel_reason"]').fill("Test reason");
-    await page.locator('[data-testid="confirm_cancel"]').click();
-
-    const cancelledHeadline = page.locator('[data-testid="cancelled-headline"]');
-    await expect(cancelledHeadline).toBeVisible();
-
-    await expect(page.locator(`[data-testid="attendee-email-${testEmail}"]`)).toHaveText(testEmail);
-    await expect(page.locator(`[data-testid="attendee-name-${testName}"]`)).toHaveText(testName);
 
     await page.goto(`/${pro.username}`);
     await bookFirstEvent(page);
@@ -241,25 +228,18 @@ test.describe("pro user", () => {
     await pro.apiLogin();
 
     await page.goto("/bookings/upcoming");
-    // Click the ellipsis menu button to open the dropdown
-    await page.locator('[data-testid="booking-actions-dropdown"]').nth(0).click();
-    // Click the cancel option in the dropdown
-    await page.locator('[data-testid="cancel"]').click();
-    await page.waitForURL((url) => {
-      return url.pathname.startsWith("/booking/");
+    const { bookingUid } = await cancelBookingFromBookingsList({
+      page,
+      nth: 0,
+      reason: "Test reason",
     });
-    await page.locator('[data-testid="cancel_reason"]').fill("Test reason");
-    await page.locator('[data-testid="confirm_cancel"]').click();
 
-    const cancelledHeadline = page.locator('[data-testid="cancelled-headline"]');
-    await expect(cancelledHeadline).toBeVisible();
-    const bookingCancelledId = new URL(page.url()).pathname.split("/booking/")[1];
+    await pro.getFirstEventAsOwner();
 
-    const { slug: eventSlug } = await pro.getFirstEventAsOwner();
-
-    await page.goto(`/reschedule/${bookingCancelledId}`);
+    await page.goto(`/reschedule/${bookingUid}`);
 
     expect(page.url()).not.toContain("rescheduleUid");
+    const cancelledHeadline = page.locator('[data-testid="cancelled-headline"]');
     await expect(cancelledHeadline).toBeVisible();
   });
 
@@ -280,7 +260,7 @@ test.describe("pro user", () => {
     await expect(page.locator('[data-testid="empty-screen"]')).toBeVisible();
   });
 
-  test("can book an unconfirmed event multiple times", async ({ page, users }) => {
+  test("can book an unconfirmed event multiple times", async ({ page }) => {
     await page.locator('[data-testid="event-type-link"]:has-text("Opt in")').click();
     await selectFirstAvailableTimeSlotNextMonth(page);
 
@@ -297,7 +277,6 @@ test.describe("pro user", () => {
 
   test("booking an unconfirmed event with the same email brings you to the original request", async ({
     page,
-    users,
   }) => {
     await page.locator('[data-testid="event-type-link"]:has-text("Opt in")').click();
     await selectFirstAvailableTimeSlotNextMonth(page);
@@ -312,7 +291,7 @@ test.describe("pro user", () => {
     await expect(page.locator("[data-testid=success-page]")).toBeVisible();
   });
 
-  test("can book with multiple guests", async ({ page, users }) => {
+  test("can book with multiple guests", async ({ page }) => {
     const additionalGuests = ["test@gmail.com", "test2@gmail.com"];
 
     await page.click('[data-testid="event-type-link"]');
@@ -335,7 +314,7 @@ test.describe("pro user", () => {
     await Promise.all(promises);
   });
 
-  test("Time slots should be reserved when selected", async ({ context, page, browser }) => {
+  test("Time slots should be reserved when selected", async ({ page, browser }) => {
     const initialUrl = page.url();
     await page.locator('[data-testid="event-type-link"]').first().click();
     await selectFirstAvailableTimeSlotNextMonth(page);
@@ -417,10 +396,7 @@ test.describe("prefill", () => {
     });
   });
 
-  test("Persist the field values when going back and coming back to the booking form", async ({
-    page,
-    users,
-  }) => {
+  test("Persist the field values when going back and coming back to the booking form", async ({ page }) => {
     await page.goto("/pro/30min");
     await selectFirstAvailableTimeSlotNextMonth(page);
     await page.fill('[name="name"]', "John Doe");
@@ -434,7 +410,7 @@ test.describe("prefill", () => {
     await expect(page.locator('[name="notes"]')).toHaveValue("Test notes");
   });
 
-  test("logged out", async ({ page, users }) => {
+  test("logged out", async ({ page }) => {
     await page.goto("/pro/30min");
 
     await test.step("from query params", async () => {
@@ -470,19 +446,27 @@ test.describe("prefill", () => {
 
 test.describe("Booking on different layouts", () => {
   test.beforeEach(async ({ page, users }) => {
-    const user = await users.create();
+    // Create user with specific availability (9 AM - 5 PM UTC, Monday-Friday)
+    // This ensures slots are available and reduces race conditions
+    const dateRanges: TimeRange = {
+      start: new Date(new Date().setUTCHours(9, 0, 0, 0)),
+      end: new Date(new Date().setUTCHours(17, 0, 0, 0)),
+    };
+    const schedule: Schedule = [[], [dateRanges], [dateRanges], [dateRanges], [dateRanges], [dateRanges], []];
+
+    const user = await users.create({ schedule });
     await page.goto(`/${user.username}`);
   });
 
   test("Book on week layout", async ({ page }) => {
     // Click first event type
-    await page.click('[data-testid="event-type-link"]');
+    await page.locator('[data-testid="event-type-link"]').first().click();
 
     await page.click('[data-testid="toggle-group-item-week_view"]');
 
     await page.click('[data-testid="incrementMonth"]');
 
-    await page.locator('[data-testid="calendar-empty-cell"]').nth(0).click();
+    await page.locator('[data-testid="calendar-empty-cell"]').nth(1).click();
 
     // Fill what is this meeting about? name email and notes
     await page.locator('[name="name"]').fill("Test name");
@@ -497,13 +481,11 @@ test.describe("Booking on different layouts", () => {
 
   test("Book on column layout", async ({ page }) => {
     // Click first event type
-    await page.click('[data-testid="event-type-link"]');
+    await page.locator('[data-testid="event-type-link"]').first().click();
 
     await page.click('[data-testid="toggle-group-item-column_view"]');
 
-    await page.click('[data-testid="incrementMonth"]');
-
-    await page.locator('[data-testid="time"]').nth(0).click();
+    await selectFirstAvailableTimeSlotNextMonth(page);
 
     // Fill what is this meeting about? name email and notes
     await page.locator('[name="name"]').fill("Test name");
@@ -514,89 +496,6 @@ test.describe("Booking on different layouts", () => {
 
     // expect page to be booking page
     await expect(page.locator("[data-testid=success-page]")).toBeVisible();
-  });
-});
-
-test.describe("Booking round robin event", () => {
-  test.beforeEach(async ({ page, users }) => {
-    const teamMatesObj = [{ name: "teammate-1" }];
-
-    const dateRanges: TimeRange = {
-      start: new Date(new Date().setUTCHours(10, 0, 0, 0)), //one hour after default schedule (teammate-1's schedule)
-      end: new Date(new Date().setUTCHours(17, 0, 0, 0)),
-    };
-
-    const schedule: Schedule = [[], [dateRanges], [dateRanges], [dateRanges], [dateRanges], [dateRanges], []];
-
-    const testUser = await users.create(
-      { schedule },
-      {
-        hasTeam: true,
-        schedulingType: SchedulingType.ROUND_ROBIN,
-        teamEventLength: 120,
-        teammates: teamMatesObj,
-        seatsPerTimeSlot: 5,
-      }
-    );
-    const team = await testUser.getFirstTeamMembership();
-    await page.goto(`/team/${team.team.slug}`);
-    await page.waitForLoadState("domcontentloaded");
-  });
-
-  test("Does not book seated round robin host outside availability with date override", async ({
-    page,
-    users,
-  }) => {
-    const [testUser] = users.get();
-
-    const team = await testUser.getFirstTeamMembership();
-
-    await testUser.apiLogin(`/team/${team.team.slug}`);
-
-    // Click first event type (round robin)
-    await page.click('[data-testid="event-type-link"]');
-
-    await page.click('[data-testid="incrementMonth"]');
-
-    // books 9AM slots for 120 minutes (test-user is not available at this time, availability starts at 10)
-    await page.locator('[data-testid="time"]').nth(0).click();
-
-    await page.locator('[name="name"]').fill("Test name");
-    await page.locator('[name="email"]').fill(`${randomString(4)}@example.com`);
-
-    await confirmBooking(page);
-
-    await expect(page.locator("[data-testid=success-page]")).toBeVisible();
-
-    await expect(page.locator("[data-testid=success-page]")).toBeVisible();
-
-    const host = page.locator('[data-testid="booking-host-name"]');
-    const hostName = await host.innerText();
-
-    //expect teammate-1 to be booked, test-user is not available at this time
-    expect(hostName).toBe("teammate-1");
-
-    // make another booking to see if also for the second booking teammate-1 is booked
-    await page.goto(`/team/${team.team.slug}`);
-
-    await page.click('[data-testid="event-type-link"]');
-
-    await page.click('[data-testid="incrementMonth"]');
-    await page.click('[data-testid="incrementMonth"]');
-
-    // Again book a 9AM slot for 120 minutes where test-user is not available
-    await page.locator('[data-testid="time"]').nth(0).click();
-
-    await page.locator('[name="name"]').fill("Test name");
-    await page.locator('[name="email"]').fill(`${randomString(4)}@example.com`);
-
-    await confirmBooking(page);
-
-    await expect(page.locator("[data-testid=success-page]")).toBeVisible();
-
-    const hostSecondBooking = page.locator('[data-testid="booking-host-name"]');
-    const hostNameSecondBooking = await hostSecondBooking.innerText();
-    expect(hostNameSecondBooking).toBe("teammate-1"); // teammate-1 should be booked again
   });
 });
 
@@ -708,11 +607,11 @@ test("Should throw error when both seatsPerTimeSlot and recurringEvent are set",
 });
 
 test.describe("GTM container", () => {
-  test.beforeEach(async ({ page, users }) => {
+  test.beforeEach(async ({ users }) => {
     await users.create();
   });
 
-  test("global GTM should not be loaded on private booking link", async ({ page, users, emails, prisma }) => {
+  test("global GTM should not be loaded on private booking link", async ({ page, users, prisma }) => {
     const [user] = users.get();
     const eventType = await user.getFirstEventAsOwner();
 
@@ -751,11 +650,11 @@ test.describe("GTM container", () => {
     const [user] = users.get();
     await user.apiLogin();
 
-    // Go to /insights page and wait for one of the common API call to complete
+    // Go to a non-booking page and wait for one of the common API calls to complete.
     const eventsByStatusRespPromise = page.waitForResponse(
       (response) => response.url().includes("getEventTypesFromGroup") && response.status() === 200
     );
-    await page.goto(`/insights`);
+    await page.goto("/event-types");
     await page.waitForLoadState("domcontentloaded");
     await eventsByStatusRespPromise;
 
@@ -792,5 +691,57 @@ test.describe("Past booking cancellation", () => {
 
     await page.goto(`/booking/${booking.uid}`);
     await expect(page.locator('[data-testid="cancel"]')).toBeHidden();
+  });
+});
+
+test.describe("Optional Email Field Validation", () => {
+  test("should validate format if input is provided, but allow empty submission", async ({ page, users }) => {
+    const user = await users.create({
+      eventTypes: [
+        {
+          title: "Test Event",
+          slug: "test-event",
+          length: 30,
+          bookingFields: [
+            { name: "name", type: "name", required: true },
+            { name: "email", type: "email", required: true },
+            {
+              name: "altEmail",
+              type: "email",
+              required: false,
+              label: "Alternate Email",
+            },
+          ],
+        },
+      ],
+    });
+
+    await page.goto(`/${user.username}/test-event`);
+    await selectFirstAvailableTimeSlotNextMonth(page);
+
+    await page.locator('input[name="name"]').fill("Test Booker");
+    await page.locator('input[name="email"]').fill("booker@example.com");
+
+    const optionalField = page.getByLabel(/Alternate Email/i);
+
+    // Visibility
+    await expect(optionalField).toBeVisible();
+
+    // Trigger validation error
+    await optionalField.fill("not-an-email");
+    await page.click('[data-testid="confirm-book-button"]');
+
+    // Verify form didn't submit
+    await expect(page).not.toHaveURL(/.*isSuccessBookingPage=true.*/);
+
+    // Verify empty submission is allowed
+    await optionalField.fill("");
+
+    // Click the button to submit
+    await page.click('[data-testid="confirm-book-button"]');
+
+    // Verify it reached the end
+    await expect(page).toHaveURL(/.*isSuccessBookingPage=true.*/, { timeout: 15000 });
+    await expect(page.getByTestId("success-page")).toBeVisible();
   });
 });

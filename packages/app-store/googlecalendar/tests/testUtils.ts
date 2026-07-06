@@ -7,10 +7,10 @@ import type { Prisma } from "@calcom/prisma/client";
 import { bookTimeSlot, selectSecondAvailableTimeSlotNextMonth } from "@calcom/web/playwright/lib/testUtils";
 
 import metadata from "../_metadata";
-import GoogleCalendarService from "../lib/CalendarService";
+import { createGoogleCalendarServiceWithGoogleType } from "../lib/CalendarService";
 
 /**
- * Creates the booking on Cal.com and makes the GCal call to fetch the event.
+ * Creates the booking on Cal.diy and makes the GCal call to fetch the event.
  * Ends on the booking success page
  * @param page
  *
@@ -92,7 +92,7 @@ export const createBookingAndFetchGCalEvent = async (
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   //@ts-ignore
-  const googleCalendarService = new GoogleCalendarService(refreshedCredential);
+  const googleCalendarService = createGoogleCalendarServiceWithGoogleType(refreshedCredential);
 
   const authedCalendar = await googleCalendarService.authedCalendar();
 

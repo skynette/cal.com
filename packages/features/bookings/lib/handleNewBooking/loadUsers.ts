@@ -1,18 +1,18 @@
-import { getOrgDomainConfig } from "@calcom/features/ee/organizations/lib/orgDomains";
 import {
-  getRoutedUsersWithContactOwnerAndFixedUsers,
   findMatchingHostsWithEventSegment,
   getNormalizedHosts,
+  getRoutedUsersWithContactOwnerAndFixedUsers,
 } from "@calcom/features/users/lib/getRoutedUsers";
-import { withSelectedCalendars, UserRepository } from "@calcom/features/users/repositories/UserRepository";
+import { UserRepository, withSelectedCalendars } from "@calcom/features/users/repositories/UserRepository";
 import { HttpError } from "@calcom/lib/http-error";
 import logger from "@calcom/lib/logger";
 import { safeStringify } from "@calcom/lib/safeStringify";
 import prisma, { userSelect } from "@calcom/prisma";
 import { Prisma } from "@calcom/prisma/client";
 import { credentialForCalendarServiceSelect } from "@calcom/prisma/selects/credential";
-
 import type { NewBookingEventType } from "./getEventTypesFromDB";
+
+const getOrgDomainConfig = (..._args: unknown[]) => ({ currentOrgDomain: null as string | null, isValidOrgDomain: false });
 
 const log = logger.getSubLogger({ prefix: ["[loadUsers]:handleNewBooking "] });
 
@@ -98,9 +98,18 @@ const loadDynamicUsers = async (dynamicUserList: string[], currentOrgDomain: str
   if (!Array.isArray(dynamicUserList) || dynamicUserList.length === 0) {
     throw new Error("dynamicUserList is not properly defined or empty.");
   }
-  return findUsersByUsername({
+
+  const users = await findUsersByUsername({
     usernameList: dynamicUserList,
     orgSlug: currentOrgDomain ? currentOrgDomain : null,
+  });
+
+  // For dynamic group bookings: reorder users to match dynamicUserList order
+  // to ensure the first user in the URL is the organizer/host
+  return users.sort((a, b) => {
+    const aIndex = dynamicUserList.indexOf(a.username!);
+    const bIndex = dynamicUserList.indexOf(b.username!);
+    return aIndex - bIndex;
   });
 };
 

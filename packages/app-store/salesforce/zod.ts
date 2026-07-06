@@ -1,7 +1,6 @@
 import { z } from "zod";
-
 import { eventTypeAppCardZod } from "../eventTypeAppCardZod";
-import { SalesforceRecordEnum, WhenToWriteToRecord, SalesforceFieldType } from "./lib/enums";
+import { SalesforceFieldType, SalesforceRecordEnum, WhenToWriteToRecord } from "./lib/enums";
 
 export const writeToBookingEntry = z.object({
   value: z.union([z.string(), z.boolean()]),
@@ -18,16 +17,18 @@ export const writeToRecordEntrySchema = z.object({
 
 export const writeToRecordDataSchema = z.record(z.string(), writeToBookingEntry);
 
-export const routingFormOptions = z
-  .object({
-    rrSkipToAccountLookupField: z.boolean().optional(),
-    rrSKipToAccountLookupFieldName: z.string().optional(),
-  })
-  .optional();
+export const RRSkipFieldRuleActionEnum = {
+  IGNORE: "ignore",
+  MUST_INCLUDE: "must_include",
+} as const;
 
-export const routingFormIncompleteBookingDataSchema = z.object({
-  writeToRecordObject: writeToRecordDataSchema.optional(),
+export const rrSkipFieldRuleSchema = z.object({
+  field: z.string(),
+  value: z.string(),
+  action: z.enum([RRSkipFieldRuleActionEnum.IGNORE, RRSkipFieldRuleActionEnum.MUST_INCLUDE]),
 });
+
+export type RRSkipFieldRule = z.infer<typeof rrSkipFieldRuleSchema>;
 
 const optionalBooleanOnlyRunTimeValidation = z
   .any()
@@ -40,6 +41,7 @@ export const appDataSchema = eventTypeAppCardZod.extend({
     .nativeEnum(SalesforceRecordEnum)
     .default(SalesforceRecordEnum.CONTACT)
     .optional(),
+  rrSkipFieldRules: z.array(rrSkipFieldRuleSchema).optional(),
   ifFreeEmailDomainSkipOwnerCheck: z.boolean().optional(),
   roundRobinSkipFallbackToLeadOwner: z.boolean().optional(),
   skipContactCreation: z.boolean().optional(),

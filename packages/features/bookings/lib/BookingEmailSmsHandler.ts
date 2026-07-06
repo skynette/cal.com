@@ -1,38 +1,27 @@
-import { default as cloneDeep } from "lodash/cloneDeep";
-import type { Logger } from "tslog";
-
 import dayjs from "@calcom/dayjs";
-import {
-  allowDisablingHostConfirmationEmails,
-  allowDisablingAttendeeConfirmationEmails,
-} from "@calcom/ee/workflows/lib/allowDisablingStandardEmails";
-import type { Workflow as WorkflowType } from "@calcom/ee/workflows/lib/types";
-import {
-  sendRoundRobinRescheduledEmailsAndSMS,
-  sendRoundRobinScheduledEmailsAndSMS,
-  sendRoundRobinCancelledEmailsAndSMS,
-  sendRescheduledEmailsAndSMS,
-  sendScheduledEmailsAndSMS,
-  sendOrganizerRequestEmail,
-  sendAttendeeRequestEmailAndSMS,
-  sendAddGuestsEmailsAndSMS,
-} from "@calcom/emails/email-manager";
 import type { BookingType } from "@calcom/features/bookings/lib/handleNewBooking/originalRescheduledBookingUtils";
 import type { EventNameObjectType } from "@calcom/features/eventtypes/lib/eventNaming";
+import { getTranslation } from "@calcom/i18n/server";
 import { getPiiFreeCalendarEvent } from "@calcom/lib/piiFreeData";
 import { safeStringify } from "@calcom/lib/safeStringify";
-import { getTranslation } from "@calcom/lib/server/i18n";
 import { getTimeFormatStringFromUserTimeFormat } from "@calcom/lib/timeFormat";
-import type { DestinationCalendar, Prisma, User } from "@calcom/prisma/client";
+import type { Prisma, User } from "@calcom/prisma/client";
 import type { SchedulingType } from "@calcom/prisma/enums";
 import type { EventTypeMetadata } from "@calcom/prisma/zod-utils";
 import type { AdditionalInformation, CalendarEvent, Person } from "@calcom/types/Calendar";
+import { default as cloneDeep } from "lodash/cloneDeep";
+import type { Logger } from "tslog";
 
 export const BookingActionMap = {
   confirmed: "BOOKING_CONFIRMED",
   rescheduled: "BOOKING_RESCHEDULED",
   requested: "BOOKING_REQUESTED",
 } as const;
+
+export type BookingActionType =
+  | (typeof BookingActionMap)["confirmed"]
+  | (typeof BookingActionMap)["rescheduled"]
+  | (typeof BookingActionMap)["requested"];
 
 type EmailAndSmsPayload = {
   evt: CalendarEvent;
@@ -47,8 +36,7 @@ type RescheduleEmailAndSmsPayload = EmailAndSmsPayload & {
   additionalInformation: AdditionalInformation;
   additionalNotes: string | null | undefined;
   iCalUID: string;
-  users: (Pick<User, "id" | "name" | "timeZone" | "locale" | "email"> & {
-    destinationCalendar: DestinationCalendar | null;
+  users: (Pick<User, "name" | "email"> & {
     isFixed?: boolean;
   })[];
   changedOrganizer?: boolean;
@@ -57,7 +45,6 @@ type RescheduleEmailAndSmsPayload = EmailAndSmsPayload & {
 };
 
 type ConfirmedEmailAndSmsPayload = EmailAndSmsPayload & {
-  workflows: WorkflowType[];
   eventNameObject: EventNameObjectType;
   additionalInformation: AdditionalInformation;
   additionalNotes: string | null | undefined;
@@ -94,11 +81,11 @@ export type EmailsAndSmsSideEffectsPayload =
   | ConfirmedSideEffectsPayload;
 
 export interface IBookingEmailSmsHandler {
-  logger: Logger<unknown>;
+  logger: Pick<Logger<unknown>, "warn" | "debug" | "error" | "getSubLogger">;
 }
 
 export class BookingEmailSmsHandler {
-  private readonly log: Logger<unknown>;
+  private readonly log: Pick<Logger<unknown>, "warn" | "debug" | "error">;
 
   constructor(dependencies: IBookingEmailSmsHandler) {
     this.log = dependencies.logger.getSubLogger({ prefix: ["BookingEmailSmsHandler"] });
@@ -130,6 +117,7 @@ export class BookingEmailSmsHandler {
       additionalInformation,
     } = data;
 
+    const { sendRescheduledEmailsAndSMS } = await import("@calcom/emails/email-manager");
     await sendRescheduledEmailsAndSMS(
       {
         ...evt,
@@ -229,6 +217,12 @@ export class BookingEmailSmsHandler {
       (user) => !user.isFixed && newBookedMembers.some((member) => member.email === user.email)
     );
 
+    const {
+      sendRoundRobinRescheduledEmailsAndSMS,
+      sendReassignedScheduledEmailsAndSMS,
+      sendRoundRobinCancelledEmailsAndSMS,
+    } = await import("@calcom/emails/email-manager");
+
     try {
       await Promise.all([
         sendRoundRobinRescheduledEmailsAndSMS(
@@ -236,7 +230,7 @@ export class BookingEmailSmsHandler {
           rescheduledMembers,
           metadata
         ),
-        sendRoundRobinScheduledEmailsAndSMS({
+        sendReassignedScheduledEmailsAndSMS({
           calEvent: copyEventAdditionalInfo,
           members: newBookedMembers,
           eventTypeMetadata: metadata,
@@ -266,23 +260,17 @@ export class BookingEmailSmsHandler {
     const {
       evt,
       eventType: { metadata },
-      workflows,
       eventNameObject,
       additionalInformation,
       additionalNotes,
       customInputs,
     } = data;
 
-    let isHostConfirmationEmailsDisabled = metadata?.disableStandardEmails?.confirmation?.host || false;
-    if (isHostConfirmationEmailsDisabled) {
-      isHostConfirmationEmailsDisabled = allowDisablingHostConfirmationEmails(workflows);
-    }
-
-    let isAttendeeConfirmationEmailDisabled =
+    const isHostConfirmationEmailsDisabled = metadata?.disableStandardEmails?.confirmation?.host || false;
+    const isAttendeeConfirmationEmailDisabled =
       metadata?.disableStandardEmails?.confirmation?.attendee || false;
-    if (isAttendeeConfirmationEmailDisabled) {
-      isAttendeeConfirmationEmailDisabled = allowDisablingAttendeeConfirmationEmails(workflows);
-    }
+
+    const { sendScheduledEmailsAndSMS } = await import("@calcom/emails/email-manager");
 
     try {
       await sendScheduledEmailsAndSMS(
@@ -318,6 +306,10 @@ export class BookingEmailSmsHandler {
 
     const eventWithNotes = { ...evt, additionalNotes };
 
+    const { sendOrganizerRequestEmail, sendAttendeeRequestEmailAndSMS } = await import(
+      "@calcom/emails/email-manager"
+    );
+
     try {
       await Promise.all([
         sendOrganizerRequestEmail(eventWithNotes, metadata),
@@ -325,6 +317,34 @@ export class BookingEmailSmsHandler {
       ]);
     } catch (err) {
       this.log.error("Failed to send requested event related emails", err);
+    }
+  }
+
+  /**
+   * Handles notifications when a single attendee is added to an existing booking.
+   */
+  public async handleAddAttendee(data: AddGuestsEmailAndSmsPayload) {
+    const {
+      evt,
+      eventType: { metadata },
+      newGuests,
+    } = data;
+
+    this.log.debug(
+      "Action: ADD_ATTENDEE. Sending add attendee emails and SMS.",
+      safeStringify({ calEvent: getPiiFreeCalendarEvent(evt) })
+    );
+
+    const { sendAddGuestsEmailsAndSMS } = await import("@calcom/emails/email-manager");
+
+    try {
+      await sendAddGuestsEmailsAndSMS({
+        calEvent: evt,
+        newGuests,
+        eventTypeMetadata: metadata,
+      });
+    } catch (err) {
+      this.log.error("Failed to send add attendee related emails and SMS", err);
     }
   }
 
@@ -342,6 +362,8 @@ export class BookingEmailSmsHandler {
       "Action: ADD_GUESTS. Sending add guests emails and SMS.",
       safeStringify({ calEvent: getPiiFreeCalendarEvent(evt) })
     );
+
+    const { sendAddGuestsEmailsAndSMS } = await import("@calcom/emails/email-manager");
 
     try {
       await sendAddGuestsEmailsAndSMS({

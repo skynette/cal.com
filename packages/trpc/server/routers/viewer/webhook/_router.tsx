@@ -1,3 +1,5 @@
+import type { Webhook } from "@calcom/features/webhooks/lib/dto/types";
+
 import { router } from "../../../trpc";
 import { ZCreateInputSchema } from "./create.schema";
 import { ZDeleteInputSchema } from "./delete.schema";
@@ -5,7 +7,7 @@ import { ZEditInputSchema } from "./edit.schema";
 import { ZGetInputSchema } from "./get.schema";
 import { ZListInputSchema } from "./list.schema";
 import { ZTestTriggerInputSchema } from "./testTrigger.schema";
-import { createWebhookPbacProcedure } from "./util";
+import { createWebhookProcedure } from "./util";
 
 type WebhookRouterHandlerCache = {
   list?: typeof import("./list.handler").listHandler;
@@ -20,9 +22,9 @@ type WebhookRouterHandlerCache = {
 const UNSTABLE_HANDLER_CACHE: WebhookRouterHandlerCache = {};
 
 export const webhookRouter = router({
-  list: createWebhookPbacProcedure("webhook.read")
+  list: createWebhookProcedure()
     .input(ZListInputSchema)
-    .query(async ({ ctx, input }) => {
+    .query(async ({ ctx, input }): Promise<Webhook[]> => {
       if (!UNSTABLE_HANDLER_CACHE.list) {
         UNSTABLE_HANDLER_CACHE.list = await import("./list.handler").then((mod) => mod.listHandler);
       }
@@ -38,7 +40,7 @@ export const webhookRouter = router({
       });
     }),
 
-  get: createWebhookPbacProcedure("webhook.read", ["ADMIN", "OWNER", "MEMBER"])
+  get: createWebhookProcedure()
     .input(ZGetInputSchema)
     .query(async ({ ctx, input }) => {
       if (!UNSTABLE_HANDLER_CACHE.get) {
@@ -56,7 +58,7 @@ export const webhookRouter = router({
       });
     }),
 
-  create: createWebhookPbacProcedure("webhook.create")
+  create: createWebhookProcedure()
     .input(ZCreateInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (!UNSTABLE_HANDLER_CACHE.create) {
@@ -74,7 +76,7 @@ export const webhookRouter = router({
       });
     }),
 
-  edit: createWebhookPbacProcedure("webhook.update")
+  edit: createWebhookProcedure()
     .input(ZEditInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (!UNSTABLE_HANDLER_CACHE.edit) {
@@ -92,7 +94,7 @@ export const webhookRouter = router({
       });
     }),
 
-  delete: createWebhookPbacProcedure("webhook.delete")
+  delete: createWebhookProcedure()
     .input(ZDeleteInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (!UNSTABLE_HANDLER_CACHE.delete) {
@@ -110,7 +112,7 @@ export const webhookRouter = router({
       });
     }),
 
-  testTrigger: createWebhookPbacProcedure("webhook.update")
+  testTrigger: createWebhookProcedure()
     .input(ZTestTriggerInputSchema)
     .mutation(async ({ ctx, input }) => {
       if (!UNSTABLE_HANDLER_CACHE.testTrigger) {
@@ -130,8 +132,8 @@ export const webhookRouter = router({
       });
     }),
 
-  getByViewer: createWebhookPbacProcedure("webhook.read", ["ADMIN", "OWNER", "MEMBER"]).query(
-    async ({ ctx }) => {
+  getByViewer: createWebhookProcedure().query(
+    async ({ ctx }): Promise<import("./getByViewer.handler").WebhooksByViewer> => {
       if (!UNSTABLE_HANDLER_CACHE.getByViewer) {
         UNSTABLE_HANDLER_CACHE.getByViewer = await import("./getByViewer.handler").then(
           (mod) => mod.getByViewerHandler

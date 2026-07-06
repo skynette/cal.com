@@ -1,10 +1,8 @@
 import type { AppMeta } from "@calcom/types/App";
 
-import _package from "./package.json";
-
 export const metadata = {
   name: "Microsoft Exchange 2016 Calendar",
-  description: _package.description,
+  description: "For calendars hosted on on-premises Microsoft Exchange 2016 servers",
   installed: true,
   type: "exchange2016_calendar",
   title: "Microsoft Exchange 2016 Calendar",
@@ -13,7 +11,7 @@ export const metadata = {
   categories: ["calendar"],
   label: "Exchange Calendar",
   logo: "icon.svg",
-  publisher: "Cal.com",
+  publisher: "Cal.diy",
   slug: "exchange2016-calendar",
   url: "https://cal.com/",
   email: "help@cal.com",

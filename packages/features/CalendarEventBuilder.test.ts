@@ -1,15 +1,12 @@
+import dayjs from "@calcom/dayjs";
+import type { BookingForCalEventBuilder } from "@calcom/features/CalendarEventBuilder";
+import { CalendarEventBuilder } from "@calcom/features/CalendarEventBuilder";
+import { TimeFormat } from "@calcom/lib/timeFormat";
+import type { CalendarEvent, Person } from "@calcom/types/Calendar";
 import type { TFunction } from "i18next";
 import { describe, expect, it, vi } from "vitest";
 
-import dayjs from "@calcom/dayjs";
-import { CalendarEventBuilder } from "@calcom/features/CalendarEventBuilder";
-import type { Person } from "@calcom/types/Calendar";
-
-vi.mock("@calcom/features/ee/organizations/lib/getBookerUrlServer", () => ({
-  getBookerBaseUrl: vi.fn(async () => "https://cal.com"),
-}));
-
-vi.mock("@calcom/lib/server/i18n", () => ({
+vi.mock("@calcom/i18n/server", () => ({
   getTranslation: vi.fn(async () => vi.fn(() => "translated")),
 }));
 
@@ -23,22 +20,51 @@ vi.mock("@calcom/features/bookings/lib/getCalEventResponses", () => ({
   })),
 }));
 
+vi.mock("@calcom/prisma", () => ({
+  default: {},
+  prisma: {},
+}));
+
 describe("CalendarEventBuilder", () => {
   const mockTranslate = vi.fn(() => "foo") as TFunction;
   const mockStartTime = dayjs().add(1, "day").format();
   const mockEndTime = dayjs().add(1, "day").add(30, "minutes").format();
+  const defaultOrganizer = {
+    id: 123,
+    name: "Organizer",
+    email: "organizer@example.com",
+    timeZone: "America/New_York",
+    language: {
+      translate: mockTranslate,
+      locale: "en",
+    },
+  };
+  const defaultAttendees = [
+    {
+      name: "Attendee",
+      email: "attendee@example.com",
+      timeZone: "Europe/London",
+      language: {
+        translate: mockTranslate,
+        locale: "en",
+      },
+    },
+  ];
+  const createBuilder = (overrides: Partial<CalendarEvent> = {}) =>
+    new CalendarEventBuilder({
+      bookerUrl: "https://cal.com/user/test-slug",
+      title: "Test Event",
+      startTime: mockStartTime,
+      endTime: mockEndTime,
+      type: "test-slug",
+      organizer: defaultOrganizer,
+      attendees: defaultAttendees,
+      ...overrides,
+    });
 
   it("should create a basic calendar event", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-        additionalNotes: "Some notes",
-      })
+    const event = createBuilder({ additionalNotes: "Some notes" })
       .withEventType({
-        slug: "test-slug",
         description: "Test description",
         id: 123,
       })
@@ -55,15 +81,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with event type details", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         description: "Test description",
         id: 123,
         hideCalendarNotes: true,
@@ -82,73 +101,27 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with organizer details", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const organizer = {
+      id: 456,
+      name: "John Doe",
+      email: "john@example.com",
+      username: "johndoe",
+      timeZone: "America/New_York",
+      language: {
+        translate: mockTranslate,
+        locale: "en",
+      },
+    };
+
+    const event = createBuilder({ organizer })
       .withEventType({
-        slug: "test-slug",
         id: 123,
-      })
-      .withOrganizer({
-        id: 456,
-        name: "John Doe",
-        email: "john@example.com",
-        username: "johndoe",
-        timeZone: "America/New_York",
-        language: {
-          translate: mockTranslate,
-          locale: "en",
-        },
       })
       .build();
 
     expect(event).not.toBeNull();
     if (event) {
-      expect(event.organizer).toEqual({
-        id: 456,
-        name: "John Doe",
-        email: "john@example.com",
-        username: "johndoe",
-        timeZone: "America/New_York",
-        language: {
-          translate: mockTranslate,
-          locale: "en",
-        },
-      });
-    }
-  });
-
-  it("should handle nameless organizer", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
-      .withEventType({
-        slug: "test-slug",
-        id: 123,
-      })
-      .withOrganizer({
-        id: 456,
-        name: null,
-        email: "john@example.com",
-        timeZone: "America/New_York",
-        language: {
-          translate: mockTranslate,
-          locale: "en",
-        },
-      })
-      .build();
-
-    expect(event).not.toBeNull();
-    if (event) {
-      expect(event.organizer.name).toBe("Nameless");
+      expect(event.organizer).toEqual(organizer);
     }
   });
 
@@ -174,18 +147,10 @@ describe("CalendarEventBuilder", () => {
       },
     ];
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder({ attendees, bookerUrl: "https://cal.com/user" })
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
-      .withAttendees(attendees)
       .build();
 
     expect(event).not.toBeNull();
@@ -206,15 +171,8 @@ describe("CalendarEventBuilder", () => {
     };
     const userFieldsResponses = {};
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withMetadataAndResponses({
@@ -235,15 +193,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with location", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withLocation({
@@ -271,18 +222,10 @@ describe("CalendarEventBuilder", () => {
       createdAt: null,
       updatedAt: null,
       delegationCredentialId: null,
-      domainWideDelegationCredentialId: null,
     };
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withDestinationCalendar([destinationCalendar])
@@ -295,15 +238,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with identifiers", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withIdentifiers({
@@ -320,15 +256,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with confirmation settings", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withConfirmation({
@@ -345,15 +274,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should set oneTimePassword to null when isConfirmedByDefault is true", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withConfirmation({
@@ -370,15 +292,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with platform variables", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withPlatformVariables({
@@ -418,15 +333,8 @@ describe("CalendarEventBuilder", () => {
       },
     ];
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withAppsStatus(appsStatus)
@@ -446,15 +354,8 @@ describe("CalendarEventBuilder", () => {
       password: "password123",
     };
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withVideoCallData(videoCallData)
@@ -483,15 +384,8 @@ describe("CalendarEventBuilder", () => {
       id: 101,
     };
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withTeam(team)
@@ -510,15 +404,8 @@ describe("CalendarEventBuilder", () => {
       interval: 1,
     };
 
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withRecurring(recurringEvent)
@@ -531,15 +418,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with attendee seat ID", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withAttendeeSeatId("seat-123")
@@ -552,15 +432,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with UID", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withUid("booking-uid-123")
@@ -573,15 +446,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with one-time password", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withOneTimePassword("otp123")
@@ -594,15 +460,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should create an event with recurring event ID", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
+    const event = createBuilder()
       .withEventType({
-        slug: "test-slug",
         id: 123,
       })
       .withRecurringEventId("recurring-123")
@@ -616,44 +475,98 @@ describe("CalendarEventBuilder", () => {
     }
   });
 
-  it("should create a complete calendar event with all properties", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Complete Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-        additionalNotes: "Complete test notes",
-      })
+  it("should create an event with assignment reason", () => {
+    const event = createBuilder()
       .withEventType({
-        slug: "complete-test",
+        id: 123,
+      })
+      .withAssignmentReason({
+        category: "routed",
+        details: "Language: English, Region: US",
+      })
+      .build();
+
+    expect(event).not.toBeNull();
+    if (event) {
+      expect(event.assignmentReason).toEqual({
+        category: "routed",
+        details: "Language: English, Region: US",
+      });
+    }
+  });
+
+  it("should create an event with assignment reason without details", () => {
+    const event = createBuilder()
+      .withEventType({
+        id: 123,
+      })
+      .withAssignmentReason({
+        category: "reassigned",
+        details: null,
+      })
+      .build();
+
+    expect(event).not.toBeNull();
+    if (event) {
+      expect(event.assignmentReason).toEqual({
+        category: "reassigned",
+        details: null,
+      });
+    }
+  });
+
+  it("should create an event with null assignment reason", () => {
+    const event = createBuilder()
+      .withEventType({
+        id: 123,
+      })
+      .withAssignmentReason(null)
+      .build();
+
+    expect(event).not.toBeNull();
+    if (event) {
+      expect(event.assignmentReason).toBeNull();
+    }
+  });
+
+  it("should create a complete calendar event with all properties", () => {
+    const organizer = {
+      id: 456,
+      name: "John Doe",
+      email: "john@example.com",
+      username: "johndoe",
+      timeZone: "America/New_York",
+      language: {
+        translate: mockTranslate,
+        locale: "en",
+      },
+    };
+
+    const attendees = [
+      {
+        email: "attendee@example.com",
+        name: "Attendee",
+        timeZone: "Europe/London",
+        language: {
+          translate: mockTranslate,
+          locale: "en",
+        },
+      },
+    ];
+
+    const event = createBuilder({
+      type: "complete-test",
+      organizer,
+      attendees,
+      title: "Complete Test Event",
+      additionalNotes: "Complete test notes",
+    })
+      .withEventType({
         description: "Complete test description",
         id: 123,
         hideCalendarNotes: true,
         hideCalendarEventDetails: false,
       })
-      .withOrganizer({
-        id: 456,
-        name: "John Doe",
-        email: "john@example.com",
-        username: "johndoe",
-        timeZone: "America/New_York",
-        language: {
-          translate: mockTranslate,
-          locale: "en",
-        },
-      })
-      .withAttendees([
-        {
-          email: "attendee@example.com",
-          name: "Attendee",
-          timeZone: "Europe/London",
-          language: {
-            translate: mockTranslate,
-            locale: "en",
-          },
-        },
-      ])
       .withMetadataAndResponses({
         customInputs: { question1: "answer1" },
         responses: {
@@ -680,8 +593,7 @@ describe("CalendarEventBuilder", () => {
           createdAt: null,
           updatedAt: null,
           delegationCredentialId: null,
-          domainWideDelegationCredentialId: null,
-        },
+            },
       ])
       .withIdentifiers({
         iCalUID: "ical-123",
@@ -746,11 +658,6 @@ describe("CalendarEventBuilder", () => {
     }
   });
 
-  it("should return null when building without required fields", () => {
-    const builder = new CalendarEventBuilder();
-    expect(builder.build()).toBeNull();
-  });
-
   it("should create an event from an existing event", () => {
     const existingEvent = {
       title: "Existing Event",
@@ -758,16 +665,11 @@ describe("CalendarEventBuilder", () => {
       endTime: mockEndTime,
       type: "existing-type",
       bookerUrl: "https://cal.com/user/test-slug",
+      organizer: defaultOrganizer,
+      attendees: defaultAttendees,
     };
 
-    const event = CalendarEventBuilder.fromEvent(existingEvent)
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Updated Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-      })
-      .build();
+    const event = CalendarEventBuilder.fromEvent({ ...existingEvent, title: "Updated Event" }).build();
 
     expect(event).not.toBeNull();
     if (event) {
@@ -777,16 +679,8 @@ describe("CalendarEventBuilder", () => {
   });
 
   it("should propagate disableCancelling and disableRescheduling", () => {
-    const event = new CalendarEventBuilder()
-      .withBasicDetails({
-        bookerUrl: "https://cal.com/user/test-slug",
-        title: "Test Event",
-        startTime: mockStartTime,
-        endTime: mockEndTime,
-        additionalNotes: "Some notes",
-      })
+    const event = createBuilder({ additionalNotes: "Some notes" })
       .withEventType({
-        slug: "test-slug",
         description: "Test description",
         id: 123,
         disableCancelling: true,
@@ -805,6 +699,7 @@ describe("CalendarEventBuilder", () => {
     it("should create a calendar event from a basic booking", async () => {
       const mockBooking = {
         uid: "booking-123",
+        metadata: null,
         title: "Test Booking",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -842,6 +737,7 @@ describe("CalendarEventBuilder", () => {
         eventType: {
           id: 100,
           slug: "test-event",
+          title: "60 minutes",
           description: "Test event description",
           hideCalendarNotes: false,
           hideCalendarEventDetails: false,
@@ -861,11 +757,10 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtEvent = eventFromBooking.build();
@@ -892,6 +787,7 @@ describe("CalendarEventBuilder", () => {
     it("should create a calendar event from booking with video call data", async () => {
       const mockBooking = {
         uid: "booking-456",
+        metadata: null,
         title: "Video Meeting",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -925,6 +821,7 @@ describe("CalendarEventBuilder", () => {
         destinationCalendar: null,
         eventType: {
           id: 200,
+          title: "60 minutes",
           slug: "video-call",
           description: "Video call event",
           hideCalendarNotes: false,
@@ -945,18 +842,18 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [
           {
             type: "zoom_video",
+            uid: "123423432sdqnwhdh",
             meetingId: "zoom-123",
             meetingPassword: "password123",
             meetingUrl: "https://zoom.us/j/123",
           },
         ],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtEvent = eventFromBooking.build();
@@ -974,8 +871,12 @@ describe("CalendarEventBuilder", () => {
     });
 
     it("should create a calendar event from booking with team", async () => {
+      // Note: The CalendarEventBuilder filters team members to only include hosts
+      // whose emails appear in booking.attendees. This simulates a COLLECTIVE event
+      // where all hosts are assigned to the booking.
       const mockBooking = {
         uid: "booking-789",
+        metadata: null,
         title: "Team Meeting",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -991,6 +892,14 @@ describe("CalendarEventBuilder", () => {
             name: "Client",
             email: "client@example.com",
             timeZone: "America/Chicago",
+            locale: "en",
+            phoneNumber: null,
+          },
+          {
+            // Team member host - included in attendees for COLLECTIVE events
+            name: "Team Member",
+            email: "member@example.com",
+            timeZone: "America/Los_Angeles",
             locale: "en",
             phoneNumber: null,
           },
@@ -1014,12 +923,12 @@ describe("CalendarEventBuilder", () => {
             createdAt: null,
             updatedAt: null,
             delegationCredentialId: null,
-            domainWideDelegationCredentialId: null,
-          },
+                },
           profiles: [],
         },
         destinationCalendar: null,
         eventType: {
+          title: "60 minutes",
           id: 300,
           slug: "team-event",
           description: "Team event",
@@ -1068,8 +977,7 @@ describe("CalendarEventBuilder", () => {
                   createdAt: null,
                   updatedAt: null,
                   delegationCredentialId: null,
-                  domainWideDelegationCredentialId: null,
-                },
+                            },
               },
             },
             {
@@ -1094,16 +1002,14 @@ describe("CalendarEventBuilder", () => {
                   createdAt: null,
                   updatedAt: null,
                   delegationCredentialId: null,
-                  domainWideDelegationCredentialId: null,
-                },
+                            },
               },
             },
           ],
-          workflows: [],
         },
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtEvent = eventFromBooking.build();
@@ -1123,6 +1029,7 @@ describe("CalendarEventBuilder", () => {
     it("should create a calendar event from booking with recurring event", async () => {
       const mockBooking = {
         uid: "booking-recurring",
+        metadata: null,
         title: "Recurring Meeting",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -1155,6 +1062,7 @@ describe("CalendarEventBuilder", () => {
         },
         destinationCalendar: null,
         eventType: {
+          title: "60 minutes",
           id: 400,
           slug: "recurring-event",
           description: "Recurring event",
@@ -1176,11 +1084,10 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtEvent = eventFromBooking.build();
@@ -1197,6 +1104,7 @@ describe("CalendarEventBuilder", () => {
     it("should create a calendar event from booking with seats", async () => {
       const mockBooking = {
         uid: "booking-seats",
+        metadata: null,
         title: "Webinar",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -1233,6 +1141,7 @@ describe("CalendarEventBuilder", () => {
         destinationCalendar: null,
         eventType: {
           id: 500,
+          title: "60 minutes",
           slug: "webinar",
           description: "Webinar event",
           hideCalendarNotes: false,
@@ -1253,7 +1162,6 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [],
         seatsReferences: [
@@ -1267,7 +1175,7 @@ describe("CalendarEventBuilder", () => {
             },
           },
         ],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtEvent = eventFromBooking.build();
@@ -1284,6 +1192,7 @@ describe("CalendarEventBuilder", () => {
     it("should create a calendar event from booking with custom inputs and responses", async () => {
       const mockBooking = {
         uid: "booking-custom",
+        metadata: null,
         title: "Custom Event",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -1321,6 +1230,7 @@ describe("CalendarEventBuilder", () => {
         destinationCalendar: null,
         eventType: {
           id: 600,
+          title: "60 minutes",
           slug: "custom-event",
           description: "Custom event type",
           hideCalendarNotes: true,
@@ -1348,11 +1258,10 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtEvent = eventFromBooking.build();
@@ -1375,6 +1284,7 @@ describe("CalendarEventBuilder", () => {
     it("should match calendar event built from booking with manually built event", async () => {
       const mockBooking = {
         uid: "booking-match",
+        metadata: null,
         title: "Match Test",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -1411,6 +1321,7 @@ describe("CalendarEventBuilder", () => {
         destinationCalendar: null,
         eventType: {
           id: 700,
+          title: "60 minutes",
           slug: "match-event",
           description: "Match event type",
           hideCalendarNotes: false,
@@ -1431,16 +1342,14 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtFromBooking = eventFromBooking.build();
 
-      const manualBuilder = new CalendarEventBuilder();
       const organizerPerson = {
         id: 8,
         name: "Match Host",
@@ -1448,7 +1357,7 @@ describe("CalendarEventBuilder", () => {
         username: "matchhost",
         timeZone: "America/New_York",
         language: { translate: mockTranslate, locale: "en" },
-        timeFormat: "h:mma" as const,
+        timeFormat: TimeFormat["TWENTY_FOUR_HOUR"],
       };
       const attendeePerson = {
         name: "Match User",
@@ -1457,17 +1366,20 @@ describe("CalendarEventBuilder", () => {
         language: { translate: mockTranslate, locale: "en" },
       };
 
+      const manualBuilder = createBuilder({
+        type: "match-event",
+        organizer: organizerPerson,
+        attendees: [attendeePerson],
+        bookerUrl: "https://cal.com",
+        title: "Match Test",
+        startTime: new Date(mockStartTime).toISOString(),
+        endTime: new Date(mockEndTime).toISOString(),
+        additionalNotes: "Match test description",
+      });
+
       const manualEvent = manualBuilder
-        .withBasicDetails({
-          bookerUrl: "https://cal.com",
-          title: "Match Test",
-          startTime: new Date(mockStartTime).toISOString(),
-          endTime: new Date(mockEndTime).toISOString(),
-          additionalNotes: "Match test description",
-        })
         .withEventType({
           id: 700,
-          slug: "match-event",
           description: "Match event type",
           hideCalendarNotes: false,
           hideCalendarEventDetails: false,
@@ -1480,8 +1392,6 @@ describe("CalendarEventBuilder", () => {
           disableRescheduling: false,
           disableCancelling: false,
         })
-        .withOrganizer(organizerPerson)
-        .withAttendees([attendeePerson])
         .withLocation({ location: "Test Location" })
         .withIdentifiers({ iCalUID: "match-ical", iCalSequence: 1 })
         .withConfirmation({ requiresConfirmation: false, isConfirmedByDefault: true })
@@ -1510,6 +1420,7 @@ describe("CalendarEventBuilder", () => {
     it("should throw error when booking is missing user", async () => {
       const mockBooking = {
         uid: "booking-no-user",
+        metadata: null,
         title: "No User",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -1524,6 +1435,7 @@ describe("CalendarEventBuilder", () => {
         user: null,
         destinationCalendar: null,
         eventType: {
+          title: "60 minutes",
           id: 800,
           slug: "test",
           description: null,
@@ -1545,11 +1457,10 @@ describe("CalendarEventBuilder", () => {
           team: null,
           users: [],
           hosts: [],
-          workflows: [],
         },
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       await expect(CalendarEventBuilder.fromBooking(mockBooking)).rejects.toThrow(
         "Booking booking-no-user is missing an organizer"
@@ -1559,6 +1470,7 @@ describe("CalendarEventBuilder", () => {
     it("should throw error when booking is missing eventType", async () => {
       const mockBooking = {
         uid: "booking-no-eventtype",
+        metadata: null,
         title: "No EventType",
         startTime: new Date(mockStartTime),
         endTime: new Date(mockEndTime),
@@ -1585,7 +1497,7 @@ describe("CalendarEventBuilder", () => {
         eventType: null,
         references: [],
         seatsReferences: [],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       await expect(CalendarEventBuilder.fromBooking(mockBooking)).rejects.toThrow(
         "Booking booking-no-eventtype is missing eventType"
@@ -1598,6 +1510,7 @@ describe("CalendarEventBuilder", () => {
 
       const mockBooking = {
         uid: "complete-booking-uid",
+        metadata: null,
         title: "Complete Team Event",
         startTime,
         endTime,
@@ -1627,6 +1540,14 @@ describe("CalendarEventBuilder", () => {
             locale: "en",
             phoneNumber: null,
           },
+          {
+            // Team member host - included in attendees for COLLECTIVE events
+            name: "Team Member",
+            email: "member@example.com",
+            timeZone: "America/Los_Angeles",
+            locale: "en",
+            phoneNumber: null,
+          },
         ],
         user: {
           id: 100,
@@ -1647,14 +1568,14 @@ describe("CalendarEventBuilder", () => {
             createdAt: null,
             updatedAt: null,
             delegationCredentialId: null,
-            domainWideDelegationCredentialId: null,
-          },
+                },
           profiles: [{ organizationId: 1 }],
         },
         destinationCalendar: null,
         eventType: {
           id: 1000,
           slug: "complete-event",
+          title: "60 minutes",
           description: "Complete event type description",
           hideCalendarNotes: true,
           hideCalendarEventDetails: true,
@@ -1708,8 +1629,7 @@ describe("CalendarEventBuilder", () => {
                   createdAt: null,
                   updatedAt: null,
                   delegationCredentialId: null,
-                  domainWideDelegationCredentialId: null,
-                },
+                            },
               },
             },
             {
@@ -1734,16 +1654,22 @@ describe("CalendarEventBuilder", () => {
                   createdAt: null,
                   updatedAt: null,
                   delegationCredentialId: null,
-                  domainWideDelegationCredentialId: null,
-                },
+                            },
               },
             },
           ],
-          workflows: [],
         },
         references: [
           {
+            type: "google_calendar",
+            uid: "",
+            meetingId: "google-meeting-123",
+            meetingPassword: "google-pass-123",
+            meetingUrl: "https://google.com/j/123456789",
+          },
+          {
             type: "zoom_video",
+            uid: "_e1cj2jap9hll6e319l3jeuii9hn6khi5acpk0gr1dgn66rrd",
             meetingId: "zoom-meeting-123",
             meetingPassword: "zoom-pass-123",
             meetingUrl: "https://zoom.us/j/123456789",
@@ -1760,7 +1686,7 @@ describe("CalendarEventBuilder", () => {
             },
           },
         ],
-      };
+      } satisfies BookingForCalEventBuilder;
 
       const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
       const builtFromBooking = eventFromBooking.build();
@@ -1807,12 +1733,14 @@ describe("CalendarEventBuilder", () => {
       expect(builtFromBooking.organizer.username).toBe("teamlead");
       expect(builtFromBooking.organizer.timeZone).toBe("America/New_York");
 
-      expect(builtFromBooking.attendees).toHaveLength(2);
+      expect(builtFromBooking.attendees).toHaveLength(3);
       expect(builtFromBooking.attendees[0].name).toBe("Complete User");
       expect(builtFromBooking.attendees[0].email).toBe("complete@example.com");
       expect(builtFromBooking.attendees[0].timeZone).toBe("America/New_York");
       expect(builtFromBooking.attendees[1].name).toBe("Guest User");
       expect(builtFromBooking.attendees[1].email).toBe("guest@example.com");
+      expect(builtFromBooking.attendees[2].name).toBe("Team Member");
+      expect(builtFromBooking.attendees[2].email).toBe("member@example.com");
 
       expect(builtFromBooking.team).toBeDefined();
       expect(builtFromBooking.team?.id).toBe(50);
@@ -1833,16 +1761,133 @@ describe("CalendarEventBuilder", () => {
       expect(builtFromBooking.videoCallData?.url).toBe("https://zoom.us/j/123456789");
 
       expect(builtFromBooking.appsStatus).toBeDefined();
-      expect(builtFromBooking.appsStatus).toHaveLength(1);
-      expect(builtFromBooking.appsStatus?.[0].type).toBe("zoom_video");
-      expect(builtFromBooking.appsStatus?.[0].success).toBe(1);
-      expect(builtFromBooking.appsStatus?.[0].failures).toBe(0);
+      expect(builtFromBooking.appsStatus).toHaveLength(2);
+      const zoomVideo = builtFromBooking.appsStatus?.find((app) => app.type === "zoom_video");
+      expect(zoomVideo).toBeDefined();
+      if (zoomVideo) {
+        expect(zoomVideo.type).toBe("zoom_video");
+        expect(zoomVideo.success).toBe(1);
+        expect(zoomVideo.failures).toBe(0);
+      }
+
+      const googleCalendar = builtFromBooking.appsStatus?.find((app) => app.type === "google_calendar");
+      expect(googleCalendar).toBeDefined();
+      if (googleCalendar) {
+        expect(googleCalendar.type).toBe("google_calendar");
+        expect(googleCalendar.success).toBe(0);
+        expect(googleCalendar.failures).toBe(1);
+      }
 
       expect(builtFromBooking.responses).toBeDefined();
       expect(builtFromBooking.userFieldsResponses).toBeDefined();
       expect(builtFromBooking.customInputs).toEqual({ oldCustomField: "oldValue" });
 
-      expect(builtFromBooking.bookerUrl).toBe("https://cal.com");
+      expect(builtFromBooking.bookerUrl).toBeTruthy();
+    });
+
+    it("should resolve app type to human-readable app name in appsStatus", async () => {
+      const mockBooking = {
+        uid: "booking-app-name-test",
+        metadata: null,
+        title: "App Name Test Event",
+        startTime: new Date(mockStartTime),
+        endTime: new Date(mockEndTime),
+        description: null,
+        location: "integrations:google:meet",
+        responses: null,
+        customInputs: null,
+        iCalUID: null,
+        iCalSequence: 0,
+        oneTimePassword: null,
+        attendees: [
+          {
+            name: "Test Attendee",
+            email: "attendee@example.com",
+            timeZone: "UTC",
+            locale: "en",
+            phoneNumber: null,
+            bookingSeat: null,
+          },
+        ],
+        user: {
+          id: 1,
+          name: "Test Host",
+          email: "host@example.com",
+          username: "testhost",
+          timeZone: "UTC",
+          locale: "en",
+          timeFormat: 24,
+          destinationCalendar: null,
+          profiles: [],
+        },
+        destinationCalendar: null,
+        eventType: {
+          id: 1,
+          title: "Test Event Type",
+          slug: "test-event",
+          description: null,
+          hideCalendarNotes: false,
+          hideCalendarEventDetails: false,
+          hideOrganizerEmail: false,
+          schedulingType: null,
+          seatsPerTimeSlot: null,
+          seatsShowAttendees: false,
+          seatsShowAvailabilityCount: false,
+          customReplyToEmail: null,
+          disableRescheduling: false,
+          disableCancelling: false,
+          requiresConfirmation: false,
+          recurringEvent: null,
+          bookingFields: [],
+          metadata: null,
+          eventName: null,
+          team: null,
+          users: [],
+          hosts: [],
+        },
+        references: [
+          {
+            type: "google_calendar",
+            uid: "google-cal-uid-123",
+            meetingId: null,
+            meetingPassword: null,
+            meetingUrl: null,
+          },
+          {
+            type: "google_video",
+            uid: "google-meet-uid-456",
+            meetingId: "meet-123",
+            meetingPassword: null,
+            meetingUrl: "https://meet.google.com/abc-defg-hij",
+          },
+        ],
+        seatsReferences: [],
+      } satisfies BookingForCalEventBuilder;
+
+      const eventFromBooking = await CalendarEventBuilder.fromBooking(mockBooking);
+      const builtEvent = eventFromBooking.build();
+
+      expect(builtEvent).not.toBeNull();
+      if (builtEvent) {
+        expect(builtEvent.appsStatus).toBeDefined();
+        expect(builtEvent.appsStatus).toHaveLength(2);
+
+        // Verify Google Calendar uses human-readable name, not the type slug
+        const googleCalendarStatus = builtEvent.appsStatus?.find((app) => app.type === "google_calendar");
+        expect(googleCalendarStatus).toBeDefined();
+        expect(googleCalendarStatus?.appName).toBe("Google Calendar");
+        // Should NOT be the raw type like "google_calendar" or "google-calendar"
+        expect(googleCalendarStatus?.appName).not.toBe("google_calendar");
+        expect(googleCalendarStatus?.appName).not.toBe("google-calendar");
+
+        // Verify Google Meet uses human-readable name
+        const googleMeetStatus = builtEvent.appsStatus?.find((app) => app.type === "google_video");
+        expect(googleMeetStatus).toBeDefined();
+        expect(googleMeetStatus?.appName).toBe("Google Meet");
+        // Should NOT be the raw type
+        expect(googleMeetStatus?.appName).not.toBe("google_video");
+        expect(googleMeetStatus?.appName).not.toBe("google-video");
+      }
     });
   });
 });

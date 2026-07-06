@@ -33,7 +33,6 @@ const mockSelectedCalendar: SelectedCalendar = {
   externalId: "test@example.com",
   eventTypeId: null,
   delegationCredentialId: null,
-  domainWideDelegationCredentialId: null,
   googleChannelId: null,
   googleChannelKind: null,
   googleChannelResourceId: null,
@@ -52,6 +51,8 @@ const mockSelectedCalendar: SelectedCalendar = {
   channelResourceUri: "test-resource-uri",
   channelExpiration: channelExpirationDate,
   syncSubscribedAt: today.toDate(),
+  syncSubscribedErrorAt: null,
+  syncSubscribedErrorCount: 0,
   syncToken: "test-sync-token",
   syncedAt: today.toDate(),
   syncErrorAt: null,
@@ -94,9 +95,11 @@ describe("GoogleCalendarSubscriptionAdapter", () => {
     };
 
     const { CalendarAuth } = await import("../__mocks__/CalendarAuth");
-    vi.mocked(CalendarAuth).mockImplementation(() => ({
-      getClient: vi.fn().mockResolvedValue(mockClient),
-    }));
+    vi.mocked(CalendarAuth).mockImplementation(function () {
+      return {
+        getClient: vi.fn().mockResolvedValue(mockClient),
+      };
+    });
 
     adapter = new GoogleCalendarSubscriptionAdapter();
     vi.clearAllMocks();

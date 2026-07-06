@@ -19,8 +19,8 @@ test.describe("Phone Location Auto-fill Feature", () => {
     // Verify custom phone fields start empty or country prefix (e.g., "+1")
     const v1 = await page.locator('[name="phone-1"]').inputValue();
     const v2 = await page.locator('[name="phone-2"]').inputValue();
-    expect(v1 === "" || /^\+\d{1,3}$/.test(v1)).toBeTruthy();
-    expect(v2 === "" || /^\+\d{1,3}$/.test(v2)).toBeTruthy();
+    expect(v1 === "" || /^\+\d{1,3}$/.test(v1)).toBe(true);
+    expect(v2 === "" || /^\+\d{1,3}$/.test(v2)).toBe(true);
 
     // Select phone location and enter phone number
     const phoneNumber = "+14155551234";
@@ -38,7 +38,10 @@ test.describe("Phone Location Auto-fill Feature", () => {
     // Skip booking confirmation to keep this test fast and focused on autofill behavior
   });
 
-  test("should NOT sync changes from custom phone fields back to location or other fields", async ({ page, users }) => {
+  test("should NOT sync changes from custom phone fields back to location or other fields", async ({
+    page,
+    users,
+  }) => {
     await createUserWithPhoneFields({ users, page });
 
     await gotoBookingPage(page);
@@ -168,13 +171,17 @@ async function fillPhoneLocationInput(page: Page, phoneNumber: string) {
 
   // Ensure the field is empty first
   await locationInput.clear();
-  // Wait for mask/prefix to settle (empty string or just country prefix)
-  await expect.poll(async () => locationInput.inputValue()).toMatch(/^(?:|\+\d{1,3})$/);
+  // Wait for mask/prefix to settle (empty string, just "+", or country prefix)
+  await expect.poll(async () => locationInput.inputValue()).toMatch(/^(?:|\+|\+\d{1,3})$/);
 
-  // If the mask auto-inserts a country prefix, avoid duplicating it
+  // If the mask auto-inserts a country prefix (or just "+"), avoid duplicating it
   const prefill = await locationInput.inputValue();
   let toType = phoneNumber;
-  if (/^\+\d{1,3}$/.test(prefill) && phoneNumber.startsWith(prefill)) {
+  if (prefill === "+" && phoneNumber.startsWith("+")) {
+    // If field has just "+", type the rest without the "+"
+    toType = phoneNumber.slice(1);
+  } else if (/^\+\d{1,3}$/.test(prefill) && phoneNumber.startsWith(prefill)) {
+    // If field has a country prefix like "+1", type the rest
     toType = phoneNumber.slice(prefill.length);
   }
 

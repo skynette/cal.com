@@ -1,4 +1,4 @@
-import prismock from "../../../../../tests/libs/__mocks__/prisma";
+import prismock from "@calcom/testing/lib/__mocks__/prisma";
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -16,7 +16,6 @@ vi.mock("@calcom/app-store/_utils/payments/getPaymentAppData", () => ({
 vi.mock("./handlePaymentRefund", () => ({
   handlePaymentRefund: vi.fn(),
 }));
-
 const mockedGetPaymentAppData = vi.mocked(getPaymentAppData);
 
 describe("processPaymentRefund", () => {

@@ -1,5 +1,4 @@
 import { IS_PRODUCTION } from "@calcom/lib/constants";
-
 import type { TaskHandler, TaskTypes } from "../tasker";
 
 /**
@@ -13,23 +12,16 @@ const tasks: Record<TaskTypes, () => Promise<TaskHandler>> = {
     import("./triggerNoShow/triggerHostNoShow").then((module) => module.triggerHostNoShow),
   triggerGuestNoShowWebhook: () =>
     import("./triggerNoShow/triggerGuestNoShow").then((module) => module.triggerGuestNoShow),
-  triggerFormSubmittedNoEventWebhook: () =>
-    import("./triggerFormSubmittedNoEvent/triggerFormSubmittedNoEventWebhook").then(
-      (module) => module.triggerFormSubmittedNoEventWebhook
-    ),
-  triggerFormSubmittedNoEventWorkflow: () =>
-    import("./triggerFormSubmittedNoEvent/triggerFormSubmittedNoEventWorkflow").then(
-      (module) => module.triggerFormSubmittedNoEventWorkflow
-    ),
   sendSms: () => Promise.resolve(() => Promise.reject(new Error("Not implemented"))),
   translateEventTypeData: () =>
     import("./translateEventTypeData").then((module) => module.translateEventTypeData),
   createCRMEvent: () => import("./crm/createCRMEvent").then((module) => module.createCRMEvent),
-  sendWorkflowEmails: () => import("./sendWorkflowEmails").then((module) => module.sendWorkflowEmails),
-  scanWorkflowBody: () => import("./scanWorkflowBody").then((module) => module.scanWorkflowBody),
   sendAnalyticsEvent: () =>
     import("./analytics/sendAnalyticsEvent").then((module) => module.sendAnalyticsEvent),
-  executeAIPhoneCall: () => import("./executeAIPhoneCall").then((module) => module.executeAIPhoneCall),
+  sendAwaitingPaymentEmail: () =>
+    import("./sendAwaitingPaymentEmail").then((module) => module.sendAwaitingPaymentEmail),
+  bookingAudit: () => import("./bookingAudit").then((module) => module.bookingAudit),
+  webhookDelivery: () => import("./webhookDelivery").then((module) => module.webhookDelivery),
 };
 
 export const tasksConfig = {
@@ -37,8 +29,9 @@ export const tasksConfig = {
     minRetryIntervalMins: IS_PRODUCTION ? 10 : 1,
     maxAttempts: 10,
   },
-  executeAIPhoneCall: {
-    maxAttempts: 1,
+  webhookDelivery: {
+    minRetryIntervalMins: IS_PRODUCTION ? 5 : 1,
+    maxAttempts: 3,
   },
 };
 export default tasks;

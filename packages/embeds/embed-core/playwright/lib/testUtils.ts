@@ -3,38 +3,7 @@ import { expect } from "@playwright/test";
 
 import prisma from "@calcom/prisma";
 
-export async function getQueuedFormResponse(queuedFormResponseId: string) {
-  return prisma.app_RoutingForms_QueuedFormResponse.findFirst({
-    where: {
-      id: queuedFormResponseId,
-    },
-    include: {
-      actualResponse: true,
-    },
-  });
-}
-
-export async function getAllFormResponses(formId: string) {
-  return prisma.app_RoutingForms_FormResponse.findMany({
-    where: {
-      formId: formId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-}
-
-export async function getLatestQueuedFormResponse({ formId }: { formId: string }) {
-  return prisma.app_RoutingForms_QueuedFormResponse.findFirst({
-    where: {
-      formId: formId,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-}
+// Routing forms feature removed - getQueuedFormResponse, getAllFormResponses, getLatestQueuedFormResponse no longer needed
 
 export const deleteAllBookingsByEmail = async (email: string) =>
   await prisma.booking.deleteMany({
@@ -83,11 +52,23 @@ export const getEmbedIframe = async ({
     },
     { polling: 500 }
   );
-  const embedIframe = page.frame(`cal-embed=${calNamespace}`);
+
+  const iframeSelector = `iframe[name="cal-embed=${calNamespace}"]`;
+  // In case of modal we don't cleanup previous iframe on repeat click, so we should read the last one by default as that would be the one actie
+  const targetIframeElement = page.locator(iframeSelector).last();
+  let elementHandle = await targetIframeElement.elementHandle();
+  let embedIframe = await elementHandle?.contentFrame();
+
   if (!embedIframe) {
     return null;
   }
-  const u = new URL(embedIframe.url());
+  let url = embedIframe.url();
+  if (!url) {
+    // If iframe hasn't even initiated loading yet, wait for it to be visible
+    await targetIframeElement.waitFor();
+    url = embedIframe.url();
+  }
+  const u = new URL(url);
   if (u.pathname === `${pathname}/embed`) {
     return embedIframe;
   }
@@ -207,31 +188,7 @@ export async function expectEmbedIFrameToBeVisible({
   await expect(iframe).toBeVisible();
 }
 
-export async function expectActualFormResponseConnectedToQueuedFormResponse({
-  queuedFormResponse,
-  page,
-  numberOfExpectedSetFieldValues,
-}: {
-  queuedFormResponse: { id: string };
-  page: Page;
-}) {
-  const responsePromise = page.waitForResponse("**/queued-response");
-  const response = await responsePromise;
-  expect(response.status()).toBe(200);
-
-  const queuedFormResponseFromDb = await getQueuedFormResponse(queuedFormResponse.id);
-
-  expect(queuedFormResponseFromDb?.actualResponse?.id).toBeDefined();
-  const responseFromDb = queuedFormResponseFromDb?.actualResponse?.response;
-  expect(responseFromDb).toBeDefined();
-  const valuesFromResponse = Object.values(responseFromDb).map((item) => item.value);
-  const valuesSetInResponse = valuesFromResponse.filter((value) => !!value);
-  // We are unable to verify the exact response values because we don't directly have the form field identifiers in responseFromDB and would require correlating that with the actual Form from DB
-  // So, for now we just verify the number of values set
-  // There are 5 values that are submitted when CTA is clicked.
-  // TODO: We should be able to verify the exact response values by correlating the form field identifiers with the actual Form from DB
-  expect(valuesSetInResponse.length).toBe(numberOfExpectedSetFieldValues);
-}
+// Routing forms feature removed - expectActualFormResponseConnectedToQueuedFormResponse no longer needed
 
 export async function cancelBookingThroughEmbed(bookingUid: string, frame: Frame, page: Page) {
   await frame.waitForSelector('[data-testid="cancel_reason"]');
